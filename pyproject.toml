@@ -1,0 +1,13 @@
+[project]
+name = "dublette"
+version = "0.1.0"
+description = "Proof of concept for duplicate detection using Splink with DuckDB"
+requires-python = ">=3.13"
+dependencies = [
+    "splink",
+    "duckdb",
+    "pandas",
+    "jupyter",
+    "matplotlib",
+    "seaborn",
+]

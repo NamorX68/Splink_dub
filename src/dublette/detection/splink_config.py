@@ -1,0 +1,79 @@
+"""
+Splink Configuration Module for Duplicate Detection POC
+
+This module provides functions for configuring Splink for duplicate detection.
+"""
+
+from splink import DuckDBAPI, Linker
+from splink.internals import comparison_library as cl
+from splink.internals import blocking_rule_library as brl
+
+def configure_splink(con):
+    """
+    Configure Splink for duplicate detection.
+
+    Args:
+        con (duckdb.DuckDBPyConnection): DuckDB connection
+
+    Returns:
+        Linker: Configured Splink linker object
+    """
+    # Define settings for Splink using modern API with standardized column names
+    splink_settings = {
+        "link_type": "link_only",
+        "unique_id_column_name": "unique_id",
+        "blocking_rules_to_generate_predictions": [
+            brl.block_on("last_name"),
+            brl.block_on("postal_code"),
+            brl.block_on("email")
+        ],
+        "comparisons": [
+            cl.LevenshteinAtThresholds("first_name", [2, 4]),
+            cl.LevenshteinAtThresholds("last_name", [2, 4]),
+            cl.ExactMatch("birth_date"),
+            cl.LevenshteinAtThresholds("street", [2]),
+            cl.ExactMatch("house_number"),
+            cl.ExactMatch("postal_code"),
+            cl.LevenshteinAtThresholds("city", [2]),
+            cl.ExactMatch("email"),
+            cl.LevenshteinAtThresholds("phone", [3])
+        ],
+        "retain_intermediate_calculation_columns": True,
+        "em_convergence": 0.001,
+        "max_iterations": 20
+    }
+
+    # Create DuckDB linker
+    db_api = DuckDBAPI(connection=con)
+    linker = Linker(
+        ["company_a", "company_b"],
+        splink_settings,
+        db_api=db_api
+    )
+
+    return linker
+
+def detect_duplicates(linker):
+    """
+    Detect duplicates using Splink.
+
+    Args:
+        linker (Linker): Configured Splink linker object
+
+    Returns:
+        pd.DataFrame: DataFrame with duplicate pairs and match probability
+    """
+    # Train the model using v4.x API
+    linker.training.estimate_u_using_random_sampling(max_pairs=1000000)
+
+    # EM training requires a blocking rule in v4.x
+    blocking_rule = brl.block_on("last_name")
+    linker.training.estimate_parameters_using_expectation_maximisation(blocking_rule)
+
+    # Get predictions using v4.x API
+    predictions = linker.inference.predict()
+
+    # Convert to pandas DataFrame
+    df_predictions = predictions.as_pandas_dataframe()
+
+    return df_predictions
