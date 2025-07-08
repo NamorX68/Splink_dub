@@ -8,50 +8,79 @@ from splink import DuckDBAPI, Linker
 from splink.internals import comparison_library as cl
 from splink.internals import blocking_rule_library as brl
 
-def configure_splink(con):
+
+def configure_splink(con, multi_table=True, table_name="company_data"):
     """
     Configure Splink for duplicate detection.
 
     Args:
         con (duckdb.DuckDBPyConnection): DuckDB connection
+        multi_table (bool): If True, performs linking between two tables. If False, performs deduplication on single table.
+        table_name (str): Name of the table for single-table processing.
 
     Returns:
         Linker: Configured Splink linker object
     """
     # Define settings for Splink using modern API with standardized column names
-    splink_settings = {
-        "link_type": "link_only",
-        "unique_id_column_name": "unique_id",
-        "blocking_rules_to_generate_predictions": [
-            brl.block_on("last_name"),
-            brl.block_on("postal_code"),
-            brl.block_on("email")
-        ],
-        "comparisons": [
-            cl.LevenshteinAtThresholds("first_name", [2, 4]),
-            cl.LevenshteinAtThresholds("last_name", [2, 4]),
-            cl.ExactMatch("birth_date"),
-            cl.LevenshteinAtThresholds("street", [2]),
-            cl.ExactMatch("house_number"),
-            cl.ExactMatch("postal_code"),
-            cl.LevenshteinAtThresholds("city", [2]),
-            cl.ExactMatch("email"),
-            cl.LevenshteinAtThresholds("phone", [3])
-        ],
-        "retain_intermediate_calculation_columns": True,
-        "em_convergence": 0.001,
-        "max_iterations": 20
-    }
+    if multi_table:
+        # Multi-table linking settings
+        splink_settings = {
+            "link_type": "link_only",
+            "unique_id_column_name": "unique_id",
+            "blocking_rules_to_generate_predictions": [
+                brl.block_on("last_name"),
+                brl.block_on("postal_code"),
+                brl.block_on("email"),
+            ],
+            "comparisons": [
+                cl.LevenshteinAtThresholds("first_name", [2, 4]),
+                cl.LevenshteinAtThresholds("last_name", [2, 4]),
+                cl.ExactMatch("birth_date"),
+                cl.LevenshteinAtThresholds("street", [2]),
+                cl.ExactMatch("house_number"),
+                cl.ExactMatch("postal_code"),
+                cl.LevenshteinAtThresholds("city", [2]),
+                cl.ExactMatch("email"),
+                cl.LevenshteinAtThresholds("phone", [3]),
+            ],
+            "retain_intermediate_calculation_columns": True,
+            "em_convergence": 0.001,
+            "max_iterations": 20,
+        }
+        table_or_tables = ["company_a", "company_b"]
+    else:
+        # Single-table deduplication settings
+        splink_settings = {
+            "link_type": "dedupe_only",
+            "unique_id_column_name": "unique_id",
+            "blocking_rules_to_generate_predictions": [
+                brl.block_on("last_name"),
+                brl.block_on("postal_code"),
+                brl.block_on("email"),
+            ],
+            "comparisons": [
+                cl.LevenshteinAtThresholds("first_name", [2, 4]),
+                cl.LevenshteinAtThresholds("last_name", [2, 4]),
+                cl.ExactMatch("birth_date"),
+                cl.LevenshteinAtThresholds("street", [2]),
+                cl.ExactMatch("house_number"),
+                cl.ExactMatch("postal_code"),
+                cl.LevenshteinAtThresholds("city", [2]),
+                cl.ExactMatch("email"),
+                cl.LevenshteinAtThresholds("phone", [3]),
+            ],
+            "retain_intermediate_calculation_columns": True,
+            "em_convergence": 0.001,
+            "max_iterations": 20,
+        }
+        table_or_tables = table_name
 
     # Create DuckDB linker
     db_api = DuckDBAPI(connection=con)
-    linker = Linker(
-        ["company_a", "company_b"],
-        splink_settings,
-        db_api=db_api
-    )
+    linker = Linker(table_or_tables, splink_settings, db_api=db_api)
 
     return linker
+
 
 def detect_duplicates(linker):
     """
