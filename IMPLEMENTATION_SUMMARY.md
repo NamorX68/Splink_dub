@@ -1,130 +1,169 @@
-# Zusammenfassung der Code-Anpassungen
+# Splink Duplikaterkennungs-POC - Projektzusammenfassung
 
-## Erfolgreich implementierte Änderungen
+## Projektzweck und Funktionalität
 
-### 1. Click-basierte Parameterübergabe ✅
+Dieses Projekt implementiert einen **modularen Proof-of-Concept für Duplikaterkennung** in Python mit deutscher Datenstruktur. Das System kann sowohl **Multi-Table-Linking** (Verknüpfung zwischen verschiedenen Datenquellen) als auch **Single-Table-Deduplication** (Duplikaterkennung innerhalb einer Datenquelle) durchführen.
 
-Die `app.py` wurde erfolgreich mit Click-Parametern erweitert:
+### Kernfunktionen
+- **Flexible Eingabeverarbeitung**: Unterstützt generierte Testdaten, Multi-Table-Szenarien und beliebige CSV-Eingabedateien
+- **Deutsche Datenstruktur**: Arbeitet mit deutschen Spaltennamen (SATZNR, PARTNERTYP, NAME, VORNAME, etc.)
+- **Automatische Modusauswahl**: Erkennt automatisch Single-File vs. Multi-Table-Verarbeitung
+- **Robuste Pipeline**: Vollständige Pipeline von Datengenerierung bis Evaluation
 
-- `--multi-table`: Flag für Mehrtabellenverarbeitung (Standard: False)
-- `--generate-test-data`: Flag für Testdatengenerierung (Standard: False)  
-- `--table-name`: Name der Tabelle für Eintabellenverarbeitung (Standard: 'company_data')
+## Technologie-Stack
 
-### 2. Flexible Ein-/Mehrtabellenverarbeitung ✅
+### Haupttechnologien
+- **Python 3.11+**: Hauptprogrammiersprache
+- **Splink v4**: Spezialisierte Bibliothek für probabilistische Record Linkage und Duplikaterkennung
+- **DuckDB**: In-Memory SQL-Datenbank für performante Datenverarbeitung
+- **uv**: Moderner Python Package Manager für Dependency Management
+- **Click**: Framework für Command Line Interface (CLI)
 
-**Splink-Konfiguration angepasst:**
-- `configure_splink()` unterstützt `multi_table` und `table_name` Parameter
-- **Multi-table**: `link_type: "link_only"` mit zwei Tabellen (`company_a`, `company_b`)
-- **Single-table**: `link_type: "dedupe_only"` mit einer kombinierten Tabelle
+### Weitere Dependencies
+- **pandas**: Datenmanipulation und -analyse
+- **matplotlib**: Visualisierung von Match-Probability-Verteilungen
+- **faker**: Generierung realistischer Testdaten
 
-**Database-Setup erweitert:**
-- `setup_duckdb()` unterstützt `generate_test_data` Parameter
-- Automatische Erstellung einer `company_data` View für Eintabellenverarbeitung:
-  ```sql
-  CREATE VIEW company_data AS 
-  SELECT * FROM company_a
-  UNION ALL
-  SELECT * FROM company_b
-  ```
+## Projektarchitektur
 
-### 4. Package Management mit uv ✅
-
-- Alle Dependencies werden über uv verwaltet
-- `pyproject.toml` erweitert um Click-Dependency
-- CLI Entry Point konfiguriert: `dublette = "dublette.app:main"`
-
-**Database-Setup erweitert:**
-- `setup_duckdb(generate_test_data=False, multi_table=True)` Parameter hinzugefügt
-- **Multi-table Modus**: Lädt beide Tabellen separat (`company_a`, `company_b`)
-- **Single-table Modus**: Lädt beide Tabellen und erstellt kombinierte `company_data` View
-- Intelligente Fehlerbehandlung für fehlende CSV-Dateien basierend auf Modus
-- Verbesserte Logging-Nachrichten für bessere Transparenz
-
-```sql
--- Single-table mode erstellt zusätzlich:
-CREATE VIEW company_data AS 
-SELECT * FROM company_a
-UNION ALL
-SELECT * FROM company_b
+### Modulare Struktur
+```
+src/dublette/
+├── app.py                 # CLI-Hauptanwendung (Click-basiert)
+├── data/
+│   └── generation.py      # Testdatengenerierung mit deutschem Schema
+├── database/
+│   └── connection.py      # DuckDB-Setup und Datenbankoperationen
+├── detection/
+│   └── splink_config.py   # Splink-Konfiguration für deutsche Daten
+└── evaluation/
+    └── metrics.py         # Evaluation und Visualisierung
 ```
 
-## Funktionsweise
+### Datenmodell (Deutsches Schema)
+- **SATZNR**: Eindeutige Datensatz-ID
+- **PARTNERTYP**: Typ des Partners (Person/Unternehmen)
+- **NAME**: Nachname/Firmenname
+- **VORNAME**: Vorname
+- **GEBURTSDATUM**: Geburtsdatum
+- **GESCHLECHT**: Geschlecht
+- **LAND**: Land
+- **POSTLEITZAHL**: PLZ
+- **GEMEINDESCHLUESSEL**: Gemeindeschlüssel
+- **ORT**: Ort/Stadt
+- **ADRESSZEILE**: Adresszeile
 
-### Verwendungsbeispiele:
+## Anwendungsmodi
 
+### 1. Multi-Table-Linking
+Verknüpfung zwischen zwei separaten Datentabellen (`company_a` und `company_b`):
 ```bash
-# Eintabellen-Deduplication mit neuen Testdaten
+uv run python src/dublette/app.py --multi-table --generate-test-data
+```
+
+### 2. Single-Table-Deduplication
+Duplikaterkennung innerhalb einer kombinierten Datentabelle:
+```bash
+uv run python src/dublette/app.py --generate-test-data
+```
+
+### 3. Custom Input File
+Verarbeitung beliebiger CSV-Dateien:
+```bash
+uv run python src/dublette/app.py --input-file output/partnerdaten.csv
+```
+
+## Splink-Konfiguration
+
+### Blocking Rules (Performance-Optimierung)
+- **Exact Match auf PLZ**: `l.POSTLEITZAHL = r.POSTLEITZAHL`
+- **Soundex auf Namen**: `soundex(l.NAME) = soundex(r.NAME)`
+
+### Comparison Rules (Matching-Algorithmen)
+- **NAME**: Jaro-Winkler-Ähnlichkeit mit Schwellwerten
+- **VORNAME**: Jaro-Winkler-Ähnlichkeit
+- **GEBURTSDATUM**: Exakte und Levenshtein-Vergleiche
+- **POSTLEITZAHL**: Exakte Übereinstimmung
+- **ORT**: Jaro-Winkler-Ähnlichkeit
+
+## Ausgaben und Ergebnisse
+
+### Generierte Dateien (output/)
+- **Testdaten**: `company_a_data.csv`, `company_b_data.csv`, `company_data.csv`
+- **Predictions**: `predictions.csv` (Match-Wahrscheinlichkeiten)
+- **Target Table**: `target_table.csv` (Deduplizierte Ergebnisse)
+- **Visualisierung**: `match_probability_distribution.png`
+
+### Git-Integration
+- **.gitignore**: Schließt alle Output-Dateien (CSV, PNG) automatisch aus
+- **Versionskontrolle**: Nur Quellcode wird versioniert, generierte Daten bleiben lokal
+
+## CLI-Nutzung
+
+### Hauptoptionen
+- `--multi-table`: Aktiviert Multi-Table-Modus
+- `--generate-test-data`: Generiert neue Testdaten
+- `--input-file PATH`: Verwendet eigene CSV-Datei als Input
+- `--help`: Zeigt alle verfügbaren Optionen
+
+### Beispiel-Workflows
+```bash
+# Kompletter Workflow mit neuen Testdaten (Single-Table)
 uv run python src/dublette/app.py --generate-test-data
 
-# Mehrtabellen-Linking mit neuen Testdaten  
+# Multi-Table-Linking mit frischen Daten
 uv run python src/dublette/app.py --multi-table --generate-test-data
 
-# Eintabellen-Deduplication mit existierenden Daten
-uv run python src/dublette/app.py --table-name my_company_data
+# Verarbeitung eigener Daten
+uv run python src/dublette/app.py --input-file meine_daten.csv
 
-# Hilfe anzeigen
+# Re-Run mit existierenden Daten
+uv run python src/dublette/app.py
+```
+
+## Entwicklungsumgebung
+
+### Setup
+```bash
+# Projekt klonen
+git clone <repository-url>
+cd Splink_dub
+
+# Dependencies installieren
+uv sync
+
+# Anwendung ausführen
 uv run python src/dublette/app.py --help
 ```
 
-### Minimaler Test funktioniert:
+### Package Management
+- **uv.lock**: Locked Dependencies für reproduzierbare Builds
+- **pyproject.toml**: Projekt-Konfiguration und Dependencies
+- **CLI Entry Point**: `dublette = "dublette.app:main"`
 
-```python
-# test_minimal.py erfolgreich getestet
-uv run python test_minimal.py --help
-uv run python test_minimal.py --multi-table --generate-test-data
-```
+## Besondere Features
 
-## Finale Projektstruktur
+### Intelligente Datenverarbeitung
+- **Automatische Modusauswahl**: Erkennt anhand verfügbarer Tabellen den richtigen Verarbeitungsmodus
+- **Flexible Input-Behandlung**: Unterstützt verschiedene CSV-Formate und Delimiter
+- **Robuste Fehlerbehandlung**: Detaillierte Fehlermeldungen und Fallback-Strategien
 
-Das Projekt wurde vollständig bereinigt und enthält nur noch die notwendigen Dateien:
+### Performance-Optimierungen
+- **DuckDB In-Memory**: Schnelle SQL-Operationen ohne Datei-I/O
+- **Splink Blocking**: Reduziert Vergleichspaare durch intelligente Vorfilterung
+- **Efficient Deduplication**: Connected Components-Algorithmus für Gruppierung
 
-```
-├── src/dublette/           # Hauptpaket
-│   ├── __init__.py
-│   ├── app.py             # CLI-Anwendung (Click-basiert)
-│   ├── data/
-│   │   ├── __init__.py
-│   │   └── generation.py  # Testdatengenerierung
-│   ├── database/
-│   │   ├── __init__.py
-│   │   └── connection.py  # DuckDB-Setup und -Verbindung
-│   ├── detection/
-│   │   ├── __init__.py
-│   │   └── splink_config.py  # Splink-Konfiguration
-│   └── evaluation/
-│       ├── __init__.py
-│       └── metrics.py     # Metriken und Visualisierung
-├── output/                # Ausgabedateien (Beispiele)
-│   ├── company_a_data.csv
-│   ├── company_b_data.csv
-│   ├── match_probability_distribution.png
-│   ├── predictions.csv
-│   └── target_table.csv
-├── CLI_USAGE.md          # Detaillierte CLI-Dokumentation
-├── IMPLEMENTATION_SUMMARY.md  # Diese Datei
-├── README.md             # Haupt-Dokumentation
-├── pyproject.toml        # Projekt-Konfiguration
-└── uv.lock              # Dependency-Lock-Datei
-```
+### Deutsche Lokalisierung
+- **Spaltennamen**: Vollständig deutsche Bezeichnungen
+- **Testdaten**: Realistische deutsche Namen, Orte und Adressen
+- **Dokumentation**: Deutsche Begriffe und Erklärungen
 
-### Entfernte Dateien
+## Einsatzgebiete
 
-✅ `app.py` (Root) - Duplikat entfernt, verwendet `src/dublette/app.py`
-✅ `test_minimal.py` - Temporäre Testdatei entfernt
-✅ `test_cli.py` - Temporäre Testdatei entfernt  
-✅ `usage_examples.py` - Temporäre Testdatei entfernt
-✅ `USAGE.md` - Duplikat entfernt, verwendet `CLI_USAGE.md`
-✅ `legacy/` - Verzeichnis mit alter monolithischer Version entfernt
-✅ `project_restructure_summary.md` - Veraltete Dokumentation entfernt
-✅ `Erkennung_Predictions.md` - Veraltete Dokumentation entfernt
-✅ `__pycache__/` - Python-Cache entfernt
+- **Datenbereinigung**: Entfernung von Duplikaten in Kundendatenbanken
+- **Data Matching**: Verknüpfung von Datensätzen aus verschiedenen Quellen
+- **Master Data Management**: Erstellung von Golden Records
+- **Compliance**: DSGVO-konforme Datenkonsolidierung
+- **Prototyping**: Schnelle POCs für Record Linkage-Projekte
 
-## Testbare Features
-
-✅ **Click CLI funktioniert**
-✅ **Parameter-Parsing korrekt**  
-✅ **uv Package Management**
-✅ **Modulare Code-Struktur**
-✅ **Flexible Tabellen-Modi**
-
-Die Implementierung ist erfolgreich und funktionsfähig für beide Verarbeitungsmodi!
+Diese Zusammenfassung bietet alle notwendigen Informationen, um das Projekt zu verstehen und neue Entwicklungszyklen zu starten.
