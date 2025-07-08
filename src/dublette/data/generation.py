@@ -6,7 +6,7 @@ This module provides functions for generating test data for duplicate detection.
 
 import pandas as pd
 import numpy as np
-from datetime import datetime, timedelta
+from datetime import datetime
 import random
 import os
 
@@ -17,20 +17,24 @@ random.seed(42)
 
 def generate_test_data(multi_table=True):
     """
-    Generate test data for two source tables with different field names but similar content.
-    The tables represent partner data from two different company systems.
+    Generate test data for two source tables with standardized partner data schema.
+    The tables represent partner data using the new standardized column schema.
 
     Args:
         multi_table (bool): If True, generates data for both tables. If False, generates more data for company_a.
 
     The data is saved to CSV files and includes the following fields:
-    - Name (Last Name)
-    - Vorname (First Name)
-    - Postleitzahl (Postal Code)
-    - Strasse (Street)
-    - Ort (City)
-    - Geburtsdatum (Birth Date)
-    - Datum (Date of last update)
+    - SATZNR (Record Number / Unique ID)
+    - PARTNERTYP (Partner Type)
+    - NAME (Last Name)
+    - VORNAME (First Name)
+    - GEBURTSDATUM (Birth Date)
+    - GESCHLECHT (Gender)
+    - LAND (Country)
+    - POSTLEITZAHL (Postal Code)
+    - GEMEINDESCHLUESSEL (Municipality Key)
+    - ORT (City)
+    - ADRESSZEILE (Address Line)
 
     Returns:
         tuple: (df_company_a, df_company_b) - Two pandas DataFrames with test data
@@ -62,6 +66,14 @@ def generate_test_data(multi_table=True):
         "Andreas",
         "Lena",
         "Stefan",
+        "Emma",
+        "Leon",
+        "Mia",
+        "Ben",
+        "Hannah",
+        "Noah",
+        "Leonie",
+        "Elias",
     ]
     last_names = [
         "Müller",
@@ -79,6 +91,11 @@ def generate_test_data(multi_table=True):
         "Bauer",
         "Richter",
         "Klein",
+        "Wolf",
+        "Schröder",
+        "Neumann",
+        "Schwarz",
+        "Zimmermann",
     ]
     cities = [
         "Berlin",
@@ -95,6 +112,10 @@ def generate_test_data(multi_table=True):
         "Dresden",
         "Hannover",
         "Nürnberg",
+        "Duisburg",
+        "Bochum",
+        "Wuppertal",
+        "Bielefeld",
     ]
     streets = [
         "Hauptstraße",
@@ -107,56 +128,53 @@ def generate_test_data(multi_table=True):
         "Dorfstraße",
         "Wiesenweg",
         "Lindenallee",
+        "Münchener Straße",
+        "Berliner Platz",
     ]
+    partner_types = ["P", "K", "L"]  # Person, Kunde, Lieferant
+    genders = ["M", "W", "D"]  # Männlich, Weiblich, Divers
+    countries = ["DE", "AT", "CH"]  # Deutschland, Österreich, Schweiz
 
     # Generate unique records for Company A
     df_a = pd.DataFrame(
         {
-            "ID_A": range(1, n_records - n_duplicates + 1),
-            "Vorname": np.random.choice(first_names, n_records - n_duplicates),
-            "Name": np.random.choice(last_names, n_records - n_duplicates),
-            "Geburtsdatum": [
-                datetime(random.randint(1950, 2000), random.randint(1, 12), random.randint(1, 28))
+            "SATZNR": range(1, n_records - n_duplicates + 1),
+            "PARTNERTYP": np.random.choice(partner_types, n_records - n_duplicates),
+            "NAME": np.random.choice(last_names, n_records - n_duplicates),
+            "VORNAME": np.random.choice(first_names, n_records - n_duplicates),
+            "GEBURTSDATUM": [
+                datetime(random.randint(1950, 2005), random.randint(1, 12), random.randint(1, 28))
                 for _ in range(n_records - n_duplicates)
             ],
-            "Strasse": np.random.choice(streets, n_records - n_duplicates),
-            "Hausnummer": np.random.randint(1, 150, n_records - n_duplicates),
-            "Postleitzahl": np.random.randint(10000, 99999, n_records - n_duplicates),
-            "Ort": np.random.choice(cities, n_records - n_duplicates),
-            "Email": [
-                f"{random.choice(['a', 'b', 'c', 'd', 'e'])}{i}@example.com" for i in range(1, n_records - n_duplicates + 1)
-            ],
-            "Telefon": [
-                f"+49 {random.randint(100, 999)} {random.randint(1000000, 9999999)}" for _ in range(n_records - n_duplicates)
-            ],
-            "Datum": [datetime.now() - timedelta(days=random.randint(0, 365)) for _ in range(n_records - n_duplicates)],
+            "GESCHLECHT": np.random.choice(genders, n_records - n_duplicates),
+            "LAND": np.random.choice(countries, n_records - n_duplicates),
+            "POSTLEITZAHL": [f"{random.randint(10000, 99999):05d}" for _ in range(n_records - n_duplicates)],
+            "GEMEINDESCHLUESSEL": [f"{random.randint(1000, 9999):04d}" for _ in range(n_records - n_duplicates)],
+            "ORT": np.random.choice(cities, n_records - n_duplicates),
+            "ADRESSZEILE": [f"{random.choice(streets)} {random.randint(1, 150)}" for _ in range(n_records - n_duplicates)],
         }
     )
 
     # Generate unique records for Company B
     df_b = pd.DataFrame(
         {
-            "ID_B": range(n_records - n_duplicates + 1, n_records + 1),
-            "Firstname": np.random.choice(first_names, n_duplicates),
-            "Lastname": np.random.choice(last_names, n_duplicates),
-            "BirthDate": [
-                datetime(random.randint(1950, 2000), random.randint(1, 12), random.randint(1, 28)) for _ in range(n_duplicates)
+            "SATZNR": range(n_records - n_duplicates + 1, n_records + 1),
+            "PARTNERTYP": np.random.choice(partner_types, n_duplicates),
+            "NAME": np.random.choice(last_names, n_duplicates),
+            "VORNAME": np.random.choice(first_names, n_duplicates),
+            "GEBURTSDATUM": [
+                datetime(random.randint(1950, 2005), random.randint(1, 12), random.randint(1, 28)) for _ in range(n_duplicates)
             ],
-            "Street": np.random.choice(streets, n_duplicates),
-            "HouseNumber": np.random.randint(1, 150, n_duplicates),
-            "ZipCode": np.random.randint(10000, 99999, n_duplicates),
-            "City": np.random.choice(cities, n_duplicates),
-            "EmailAddress": [
-                f"{random.choice(['x', 'y', 'z', 'w', 'v'])}{i}@example.com"
-                for i in range(n_records - n_duplicates + 1, n_records + 1)
-            ],
-            "PhoneNumber": [f"+49 {random.randint(100, 999)} {random.randint(1000000, 9999999)}" for _ in range(n_duplicates)],
-            "LastUpdated": [datetime.now() - timedelta(days=random.randint(0, 365)) for _ in range(n_duplicates)],
+            "GESCHLECHT": np.random.choice(genders, n_duplicates),
+            "LAND": np.random.choice(countries, n_duplicates),
+            "POSTLEITZAHL": [f"{random.randint(10000, 99999):05d}" for _ in range(n_duplicates)],
+            "GEMEINDESCHLUESSEL": [f"{random.randint(1000, 9999):04d}" for _ in range(n_duplicates)],
+            "ORT": np.random.choice(cities, n_duplicates),
+            "ADRESSZEILE": [f"{random.choice(streets)} {random.randint(1, 150)}" for _ in range(n_duplicates)],
         }
     )
 
     # Generate duplicates with variations
-    duplicates_a = []
     duplicates_b = []
 
     for i in range(n_duplicates):
@@ -166,53 +184,67 @@ def generate_test_data(multi_table=True):
 
         # Create a duplicate with variations for company B
         duplicate_b = {
-            "ID_B": n_records + i + 1,
-            "Firstname": record_a["Vorname"],
-            "Lastname": record_a["Name"],
-            "BirthDate": record_a["Geburtsdatum"],
-            "Street": record_a["Strasse"],
-            "HouseNumber": record_a["Hausnummer"],
-            "ZipCode": record_a["Postleitzahl"],
-            "City": record_a["Ort"],
-            "EmailAddress": record_a["Email"],
-            "PhoneNumber": record_a["Telefon"],
-            "LastUpdated": datetime.now() - timedelta(days=random.randint(0, 365)),
+            "SATZNR": n_records + i + 1,
+            "PARTNERTYP": record_a["PARTNERTYP"],
+            "NAME": record_a["NAME"],
+            "VORNAME": record_a["VORNAME"],
+            "GEBURTSDATUM": record_a["GEBURTSDATUM"],
+            "GESCHLECHT": record_a["GESCHLECHT"],
+            "LAND": record_a["LAND"],
+            "POSTLEITZAHL": record_a["POSTLEITZAHL"],
+            "GEMEINDESCHLUESSEL": record_a["GEMEINDESCHLUESSEL"],
+            "ORT": record_a["ORT"],
+            "ADRESSZEILE": record_a["ADRESSZEILE"],
         }
 
         # Apply random variations to simulate real-world data issues
-        variation_type = random.randint(0, 5)
+        variation_type = random.randint(0, 6)
 
         if variation_type == 0:
-            # Typo in name
-            name = duplicate_b["Firstname"]
+            # Typo in first name
+            name = duplicate_b["VORNAME"]
             if len(name) > 3:
                 pos = random.randint(1, len(name) - 2)
-                duplicate_b["Firstname"] = name[:pos] + random.choice(["a", "e", "i", "o", "u"]) + name[pos + 1 :]
+                duplicate_b["VORNAME"] = name[:pos] + random.choice(["a", "e", "i", "o", "u"]) + name[pos + 1 :]
 
         elif variation_type == 1:
-            # Different format for phone number
-            phone = duplicate_b["PhoneNumber"].replace(" ", "").replace("+49", "0")
-            duplicate_b["PhoneNumber"] = phone
+            # Typo in last name
+            name = duplicate_b["NAME"]
+            if len(name) > 3:
+                pos = random.randint(1, len(name) - 2)
+                duplicate_b["NAME"] = name[:pos] + random.choice(["a", "e", "i", "o", "u"]) + name[pos + 1 :]
 
         elif variation_type == 2:
-            # Swapped first and last name
-            duplicate_b["Firstname"], duplicate_b["Lastname"] = duplicate_b["Lastname"], duplicate_b["Firstname"]
+            # Different address format
+            parts = duplicate_b["ADRESSZEILE"].split()
+            if len(parts) >= 2:
+                duplicate_b["ADRESSZEILE"] = f"{parts[0]} Nr. {parts[1]}"
 
         elif variation_type == 3:
-            # Missing house number
-            duplicate_b["HouseNumber"] = None
+            # Different postal code format (add leading zero or change last digit)
+            plz = duplicate_b["POSTLEITZAHL"]
+            if random.choice([True, False]):
+                # Change last digit
+                duplicate_b["POSTLEITZAHL"] = plz[:-1] + str(random.randint(0, 9))
+            else:
+                # Add/remove leading zero
+                if plz.startswith("0"):
+                    duplicate_b["POSTLEITZAHL"] = plz[1:] + "0"
 
         elif variation_type == 4:
-            # Different email domain
-            email_parts = duplicate_b["EmailAddress"].split("@")
-            duplicate_b["EmailAddress"] = f"{email_parts[0]}@{random.choice(['gmail.com', 'outlook.com', 'yahoo.com'])}"
-
-        elif variation_type == 5:
             # Typo in city name
-            city = duplicate_b["City"]
+            city = duplicate_b["ORT"]
             if len(city) > 3:
                 pos = random.randint(1, len(city) - 2)
-                duplicate_b["City"] = city[:pos] + random.choice(["a", "e", "i", "o", "u"]) + city[pos + 1 :]
+                duplicate_b["ORT"] = city[:pos] + random.choice(["a", "e", "i", "o", "u"]) + city[pos + 1 :]
+
+        elif variation_type == 5:
+            # Different country (for cross-border data)
+            duplicate_b["LAND"] = random.choice(["AT", "CH"]) if duplicate_b["LAND"] == "DE" else "DE"
+
+        elif variation_type == 6:
+            # Different partner type
+            duplicate_b["PARTNERTYP"] = random.choice([pt for pt in partner_types if pt != duplicate_b["PARTNERTYP"]])
 
         duplicates_b.append(duplicate_b)
 
@@ -221,10 +253,8 @@ def generate_test_data(multi_table=True):
     df_company_a = df_a
 
     # Convert date columns to string for easier handling in DuckDB
-    df_company_a["Geburtsdatum"] = df_company_a["Geburtsdatum"].dt.strftime("%Y-%m-%d")
-    df_company_a["Datum"] = df_company_a["Datum"].dt.strftime("%Y-%m-%d %H:%M:%S")
-    df_company_b["BirthDate"] = df_company_b["BirthDate"].dt.strftime("%Y-%m-%d")
-    df_company_b["LastUpdated"] = df_company_b["LastUpdated"].dt.strftime("%Y-%m-%d %H:%M:%S")
+    df_company_a["GEBURTSDATUM"] = df_company_a["GEBURTSDATUM"].dt.strftime("%Y-%m-%d")
+    df_company_b["GEBURTSDATUM"] = df_company_b["GEBURTSDATUM"].dt.strftime("%Y-%m-%d")
 
     # Save data to CSV files
     # Get the project root directory (3 levels up from this file)

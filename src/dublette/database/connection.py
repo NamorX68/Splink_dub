@@ -7,15 +7,17 @@ This module provides functions for setting up and interacting with DuckDB.
 import duckdb
 import pandas as pd
 import os
+import click
 
 
-def setup_duckdb(generate_test_data=False, multi_table=True):
+def setup_duckdb(generate_test_data=False, multi_table=True, input_file=None):
     """
-    Set up DuckDB with the test data from CSV files.
+    Set up DuckDB with the test data from CSV files or a custom input file.
 
     Args:
         generate_test_data (bool): If True, expects fresh data generation. If False, loads existing CSV files.
         multi_table (bool): If True, loads both tables for linking. If False, loads both and creates combined view for deduplication.
+        input_file (str): Path to custom input CSV file. If provided, uses this for single-table deduplication.
 
     Returns:
         duckdb.DuckDBPyConnection: DuckDB connection
@@ -23,6 +25,40 @@ def setup_duckdb(generate_test_data=False, multi_table=True):
     # Create a new in-memory DuckDB database
     con = duckdb.connect(database=":memory:")
 
+    # Handle custom input file
+    if input_file:
+        click.echo(f"Loading custom input file: {input_file}")
+        # Load the custom file - assuming semicolon separator based on the sample
+        con.execute(f"""
+            CREATE TABLE partnerdaten_raw AS 
+            SELECT * FROM read_csv_auto('{input_file}', 
+                                       delim=';',
+                                       quote='"',
+                                       header=true)
+        """)
+
+        # Create view for single-table deduplication
+        con.execute("""
+        CREATE VIEW company_data AS 
+        SELECT 
+            SATZNR,
+            PARTNERTYP,
+            NAME,
+            VORNAME,
+            GEBURTSDATUM,
+            GESCHLECHT,
+            LAND,
+            POSTLEITZAHL,
+            GEMEINDESCHLUESSEL,
+            ORT,
+            ADRESSZEILE
+        FROM partnerdaten_raw
+        """)
+
+        click.echo(f"Loaded {con.execute('SELECT COUNT(*) FROM company_data').fetchone()[0]} records from custom file")
+        return con
+
+    # Original logic for generated test data
     # Create tables from the CSV files
     # Get the project root directory (3 levels up from this file)
     project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
@@ -49,17 +85,17 @@ def setup_duckdb(generate_test_data=False, multi_table=True):
     con.execute("""
     CREATE VIEW company_a AS 
     SELECT 
-        'company_a_' || ID_A AS unique_id,
-        Vorname AS first_name,
-        Name AS last_name,
-        Geburtsdatum AS birth_date,
-        Strasse AS street,
-        Hausnummer AS house_number,
-        Postleitzahl AS postal_code,
-        Ort AS city,
-        Email AS email,
-        Telefon AS phone,
-        Datum AS last_updated
+        SATZNR,
+        PARTNERTYP,
+        NAME,
+        VORNAME,
+        GEBURTSDATUM,
+        GESCHLECHT,
+        LAND,
+        POSTLEITZAHL,
+        GEMEINDESCHLUESSEL,
+        ORT,
+        ADRESSZEILE
     FROM company_a_raw
     """)
 
@@ -68,17 +104,17 @@ def setup_duckdb(generate_test_data=False, multi_table=True):
         con.execute("""
         CREATE VIEW company_b AS 
         SELECT 
-            'company_b_' || ID_B AS unique_id,
-            Firstname AS first_name,
-            Lastname AS last_name,
-            BirthDate AS birth_date,
-            Street AS street,
-            HouseNumber AS house_number,
-            ZipCode AS postal_code,
-            City AS city,
-            EmailAddress AS email,
-            PhoneNumber AS phone,
-            LastUpdated AS last_updated
+            SATZNR,
+            PARTNERTYP,
+            NAME,
+            VORNAME,
+            GEBURTSDATUM,
+            GESCHLECHT,
+            LAND,
+            POSTLEITZAHL,
+            GEMEINDESCHLUESSEL,
+            ORT,
+            ADRESSZEILE
         FROM company_b_raw
         """)
 
@@ -104,17 +140,17 @@ def setup_duckdb(generate_test_data=False, multi_table=True):
             con.execute("""
             CREATE VIEW company_b AS 
             SELECT 
-                'company_b_' || ID_B AS unique_id,
-                Firstname AS first_name,
-                Lastname AS last_name,
-                BirthDate AS birth_date,
-                Street AS street,
-                HouseNumber AS house_number,
-                ZipCode AS postal_code,
-                City AS city,
-                EmailAddress AS email,
-                PhoneNumber AS phone,
-                LastUpdated AS last_updated
+                SATZNR,
+                PARTNERTYP,
+                NAME,
+                VORNAME,
+                GEBURTSDATUM,
+                GESCHLECHT,
+                LAND,
+                POSTLEITZAHL,
+                GEMEINDESCHLUESSEL,
+                ORT,
+                ADRESSZEILE
             FROM company_b_raw
             """)
 
@@ -132,8 +168,8 @@ def setup_duckdb(generate_test_data=False, multi_table=True):
 
 def create_target_table(con, df_predictions, threshold=0.8):
     """
-    Create a target table with all records from both tables.
-    In case of duplicates, keep only the most recent record.
+    Create a target table from duplicate detection results.
+    Keeps the best record from each duplicate group.
 
     Args:
         con (duckdb.DuckDBPyConnection): DuckDB connection
@@ -143,95 +179,95 @@ def create_target_table(con, df_predictions, threshold=0.8):
     Returns:
         pd.DataFrame: Target table with deduplicated records
     """
+    # Check if we're in single-file mode (company_data exists) or multi-table mode (company_a/company_b exist)
+    tables = con.execute("SHOW TABLES").fetchall()
+    table_names = [table[0] for table in tables]
+    
+    is_single_file = 'company_data' in table_names and 'company_a' not in table_names
+    
+    if is_single_file:
+        # Use single-file deduplication logic
+        return create_deduplication_target_table(con, df_predictions, threshold)
+    
+    # Original multi-table logic
     # Filter predictions by threshold
     df_matches = df_predictions[df_predictions["match_probability"] >= threshold]
 
     # Create a temporary table with matches
+    con.execute("DROP TABLE IF EXISTS matches")
     con.execute("CREATE TABLE matches AS SELECT * FROM df_matches")
 
-    # Create a view with all records from both tables using standardized column names
+    # Create the target table
     con.execute("""
     CREATE VIEW all_records AS
     SELECT 
-        unique_id,
-        first_name,
-        last_name,
-        birth_date,
-        street,
-        house_number,
-        postal_code,
-        city,
-        email,
-        phone,
-        last_updated,
+        CAST(SATZNR_l AS VARCHAR) AS unique_id,
+        SATZNR,
+        PARTNERTYP,
+        NAME,
+        VORNAME,
+        GEBURTSDATUM,
+        GESCHLECHT,
+        LAND,
+        POSTLEITZAHL,
+        GEMEINDESCHLUESSEL,
+        ORT,
+        ADRESSZEILE,
         'company_a' AS source
     FROM company_a
 
     UNION ALL
 
     SELECT 
-        unique_id,
-        first_name,
-        last_name,
-        birth_date,
-        street,
-        house_number,
-        postal_code,
-        city,
-        email,
-        phone,
-        last_updated,
+        CAST(SATZNR_r AS VARCHAR) AS unique_id,
+        SATZNR,
+        PARTNERTYP,
+        NAME,
+        VORNAME,
+        GEBURTSDATUM,
+        GESCHLECHT,
+        LAND,
+        POSTLEITZAHL,
+        GEMEINDESCHLUESSEL,
+        ORT,
+        ADRESSZEILE,
         'company_b' AS source
     FROM company_b
     """)
 
-    # Create a target table with deduplicated records
     con.execute("""
     CREATE TABLE target_table AS
-    WITH duplicate_groups AS (
+    WITH ranked_records AS (
         SELECT 
-            unique_id_l,
-            unique_id_r,
-            ROW_NUMBER() OVER() AS group_id
-        FROM matches
-    ),
-    grouped_records AS (
-        SELECT 
-            r.*,
-            COALESCE(g1.group_id, g2.group_id) AS group_id
-        FROM all_records r
-        LEFT JOIN duplicate_groups g1 ON r.unique_id = g1.unique_id_l
-        LEFT JOIN duplicate_groups g2 ON r.unique_id = g2.unique_id_r
-    ),
-    latest_records AS (
-        SELECT 
-            *,
+            ar.*,
+            COALESCE(CAST(m.unique_id AS VARCHAR), CAST(m.group_id AS VARCHAR)) AS group_id,
             ROW_NUMBER() OVER(
-                PARTITION BY COALESCE(CAST(group_id AS VARCHAR), unique_id)
-                ORDER BY last_updated DESC
+                PARTITION BY COALESCE(CAST(m.unique_id AS VARCHAR), CAST(m.group_id AS VARCHAR)) 
+                ORDER BY ar.unique_id DESC
             ) AS rn
-        FROM grouped_records
+        FROM all_records ar
+        LEFT JOIN matches m ON ar.unique_id = m.unique_id
     )
     SELECT 
-        unique_id,
-        first_name,
-        last_name,
-        birth_date,
-        street,
-        house_number,
-        postal_code,
-        city,
-        email,
-        phone,
-        last_updated,
-        source
-    FROM latest_records
+        SATZNR,
+        PARTNERTYP,
+        NAME,
+        VORNAME,
+        GEBURTSDATUM,
+        GESCHLECHT,
+        LAND,
+        POSTLEITZAHL,
+        GEMEINDESCHLUESSEL,
+        ORT,
+        ADRESSZEILE,
+        source,
+        group_id
+    FROM ranked_records
     WHERE rn = 1
     """)
 
-    # Get the target table as a DataFrame
-    df_target = con.execute("SELECT * FROM target_table").fetchdf()
-
+    # Return the target table as DataFrame
+    df_target = con.execute("SELECT * FROM target_table").df()
     return df_target
 
 
@@ -250,34 +286,34 @@ def create_combined_table_for_deduplication(con):
     con.execute("""
     CREATE TABLE combined_data AS
     SELECT 
-        unique_id,
-        first_name,
-        last_name,
-        birth_date,
-        street,
-        house_number,
-        postal_code,
-        city,
-        email,
-        phone,
-        last_updated,
+        SATZNR,
+        PARTNERTYP,
+        NAME,
+        VORNAME,
+        GEBURTSDATUM,
+        GESCHLECHT,
+        LAND,
+        POSTLEITZAHL,
+        GEMEINDESCHLUESSEL,
+        ORT,
+        ADRESSZEILE,
         'company_a' AS source
     FROM company_a
 
     UNION ALL
 
     SELECT 
-        unique_id,
-        first_name,
-        last_name,
-        birth_date,
-        street,
-        house_number,
-        postal_code,
-        city,
-        email,
-        phone,
-        last_updated,
+        SATZNR,
+        PARTNERTYP,
+        NAME,
+        VORNAME,
+        GEBURTSDATUM,
+        GESCHLECHT,
+        LAND,
+        POSTLEITZAHL,
+        GEMEINDESCHLUESSEL,
+        ORT,
+        ADRESSZEILE,
         'company_b' AS source
     FROM company_b
     """)
@@ -305,22 +341,50 @@ def create_deduplication_target_table(con, df_predictions, threshold=0.8):
     con.execute("DROP TABLE IF EXISTS dedup_matches")
     con.execute("CREATE TABLE dedup_matches AS SELECT * FROM df_matches")
 
+    # Check if combined_data exists, if not create it from company_data or company_a/company_b
+    tables = con.execute("SHOW TABLES").fetchall()
+    table_names = [table[0] for table in tables]
+    
+    if 'combined_data' not in table_names:
+        if 'company_data' in table_names:
+            # Single-file mode: use company_data directly
+            con.execute("""
+            CREATE TABLE combined_data AS
+            SELECT 
+                SATZNR,
+                PARTNERTYP,
+                NAME,
+                VORNAME,
+                GEBURTSDATUM,
+                GESCHLECHT,
+                LAND,
+                POSTLEITZAHL,
+                GEMEINDESCHLUESSEL,
+                ORT,
+                ADRESSZEILE,
+                'single_file' AS source
+            FROM company_data
+            """)
+        else:
+            # Multi-table mode: combine company_a and company_b
+            create_combined_table_for_deduplication(con)
+
     # Create deduplicated table using connected components approach
     con.execute("""
     CREATE OR REPLACE TABLE deduplicated_data AS
     WITH RECURSIVE duplicate_groups AS (
         -- Base case: each record starts as its own group
         SELECT 
-            unique_id_l AS record_id,
-            unique_id_l AS group_leader,
+            SATZNR_l AS record_id,
+            SATZNR_l AS group_leader,
             0 AS level
         FROM dedup_matches
         
         UNION
         
         SELECT 
-            unique_id_r AS record_id,
-            unique_id_r AS group_leader,
+            SATZNR_r AS record_id,
+            SATZNR_r AS group_leader,
             0 AS level
         FROM dedup_matches
         
@@ -328,11 +392,11 @@ def create_deduplication_target_table(con, df_predictions, threshold=0.8):
         
         -- Recursive case: propagate group membership
         SELECT 
-            m.unique_id_r AS record_id,
+            m.SATZNR_r AS record_id,
             dg.group_leader,
             dg.level + 1
         FROM dedup_matches m
-        JOIN duplicate_groups dg ON m.unique_id_l = dg.record_id
+        JOIN duplicate_groups dg ON m.SATZNR_l = dg.record_id
         WHERE dg.level < 10  -- Prevent infinite recursion
     ),
     final_groups AS (
@@ -345,31 +409,30 @@ def create_deduplication_target_table(con, df_predictions, threshold=0.8):
     all_records_with_groups AS (
         SELECT 
             c.*,
-            COALESCE(fg.final_group_leader, c.unique_id) AS group_id
+            COALESCE(fg.final_group_leader, c.SATZNR) AS group_id
         FROM combined_data c
-        LEFT JOIN final_groups fg ON c.unique_id = fg.record_id
-    ),
-    ranked_records AS (
+        LEFT JOIN final_groups fg ON c.SATZNR = fg.record_id
+    ),            ranked_records AS (
         SELECT 
             *,
             ROW_NUMBER() OVER(
                 PARTITION BY group_id 
-                ORDER BY last_updated DESC, unique_id
+                ORDER BY SATZNR DESC
             ) AS rn
         FROM all_records_with_groups
     )
     SELECT 
-        unique_id,
-        first_name,
-        last_name,
-        birth_date,
-        street,
-        house_number,
-        postal_code,
-        city,
-        email,
-        phone,
-        last_updated,
+        SATZNR,
+        PARTNERTYP,
+        NAME,
+        VORNAME,
+        GEBURTSDATUM,
+        GESCHLECHT,
+        LAND,
+        POSTLEITZAHL,
+        GEMEINDESCHLUESSEL,
+        ORT,
+        ADRESSZEILE,
         source,
         group_id
     FROM ranked_records

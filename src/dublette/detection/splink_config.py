@@ -11,7 +11,7 @@ from splink.internals import blocking_rule_library as brl
 
 def configure_splink(con, multi_table=True, table_name="company_data"):
     """
-    Configure Splink for duplicate detection.
+    Configure Splink for duplicate detection using the new standardized schema.
 
     Args:
         con (duckdb.DuckDBPyConnection): DuckDB connection
@@ -21,27 +21,28 @@ def configure_splink(con, multi_table=True, table_name="company_data"):
     Returns:
         Linker: Configured Splink linker object
     """
-    # Define settings for Splink using modern API with standardized column names
+    # Define settings for Splink using modern API with new standardized column names
     if multi_table:
         # Multi-table linking settings
         splink_settings = {
             "link_type": "link_only",
-            "unique_id_column_name": "unique_id",
+            "unique_id_column_name": "SATZNR",
             "blocking_rules_to_generate_predictions": [
-                brl.block_on("last_name"),
-                brl.block_on("postal_code"),
-                brl.block_on("email"),
+                brl.block_on("NAME"),
+                brl.block_on("POSTLEITZAHL"),
+                brl.block_on("ORT"),
             ],
             "comparisons": [
-                cl.LevenshteinAtThresholds("first_name", [2, 4]),
-                cl.LevenshteinAtThresholds("last_name", [2, 4]),
-                cl.ExactMatch("birth_date"),
-                cl.LevenshteinAtThresholds("street", [2]),
-                cl.ExactMatch("house_number"),
-                cl.ExactMatch("postal_code"),
-                cl.LevenshteinAtThresholds("city", [2]),
-                cl.ExactMatch("email"),
-                cl.LevenshteinAtThresholds("phone", [3]),
+                cl.LevenshteinAtThresholds("VORNAME", [2, 4]),
+                cl.LevenshteinAtThresholds("NAME", [2, 4]),
+                cl.ExactMatch("GEBURTSDATUM"),
+                cl.ExactMatch("GESCHLECHT"),
+                cl.ExactMatch("LAND"),
+                cl.ExactMatch("POSTLEITZAHL"),
+                cl.LevenshteinAtThresholds("ORT", [2]),
+                cl.LevenshteinAtThresholds("ADRESSZEILE", [3, 6]),
+                cl.ExactMatch("PARTNERTYP"),
+                cl.ExactMatch("GEMEINDESCHLUESSEL"),
             ],
             "retain_intermediate_calculation_columns": True,
             "em_convergence": 0.001,
@@ -52,22 +53,23 @@ def configure_splink(con, multi_table=True, table_name="company_data"):
         # Single-table deduplication settings
         splink_settings = {
             "link_type": "dedupe_only",
-            "unique_id_column_name": "unique_id",
+            "unique_id_column_name": "SATZNR",
             "blocking_rules_to_generate_predictions": [
-                brl.block_on("last_name"),
-                brl.block_on("postal_code"),
-                brl.block_on("email"),
+                brl.block_on("NAME"),
+                brl.block_on("POSTLEITZAHL"),
+                brl.block_on("ORT"),
             ],
             "comparisons": [
-                cl.LevenshteinAtThresholds("first_name", [2, 4]),
-                cl.LevenshteinAtThresholds("last_name", [2, 4]),
-                cl.ExactMatch("birth_date"),
-                cl.LevenshteinAtThresholds("street", [2]),
-                cl.ExactMatch("house_number"),
-                cl.ExactMatch("postal_code"),
-                cl.LevenshteinAtThresholds("city", [2]),
-                cl.ExactMatch("email"),
-                cl.LevenshteinAtThresholds("phone", [3]),
+                cl.LevenshteinAtThresholds("VORNAME", [2, 4]),
+                cl.LevenshteinAtThresholds("NAME", [2, 4]),
+                cl.ExactMatch("GEBURTSDATUM"),
+                cl.ExactMatch("GESCHLECHT"),
+                cl.ExactMatch("LAND"),
+                cl.ExactMatch("POSTLEITZAHL"),
+                cl.LevenshteinAtThresholds("ORT", [2]),
+                cl.LevenshteinAtThresholds("ADRESSZEILE", [3, 6]),
+                cl.ExactMatch("PARTNERTYP"),
+                cl.ExactMatch("GEMEINDESCHLUESSEL"),
             ],
             "retain_intermediate_calculation_columns": True,
             "em_convergence": 0.001,
@@ -96,7 +98,7 @@ def detect_duplicates(linker):
     linker.training.estimate_u_using_random_sampling(max_pairs=1000000)
 
     # EM training requires a blocking rule in v4.x
-    blocking_rule = brl.block_on("last_name")
+    blocking_rule = brl.block_on("NAME")
     linker.training.estimate_parameters_using_expectation_maximisation(blocking_rule)
 
     # Get predictions using v4.x API

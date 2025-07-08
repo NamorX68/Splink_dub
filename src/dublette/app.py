@@ -29,7 +29,12 @@ from dublette.evaluation.metrics import evaluate_model, plot_match_probability_d
 @click.option(
     "--table-name", default="company_data", help="Name of the table for single-table processing (default: company_data)"
 )
-def main(multi_table, generate_data, table_name):
+@click.option(
+    "--input-file",
+    default=None,
+    help="Path to input CSV file with partner data. If provided, uses this instead of generated test data.",
+)
+def main(multi_table, generate_data, table_name, input_file):
     """
     Main function to run the duplicate detection POC.
 
@@ -37,12 +42,18 @@ def main(multi_table, generate_data, table_name):
         multi_table (bool): If True, performs linking between two tables. If False, performs deduplication on single table.
         generate_data (bool): If True, generates new test data. If False, uses existing data.
         table_name (str): Name of the table for single-table processing.
+        input_file (str): Path to input CSV file. If provided, uses this file instead of generated data.
     """
     click.echo("Starting Duplicate Detection POC...")
     click.echo(f"Mode: {'Multi-table linking' if multi_table else 'Single-table deduplication'}")
     click.echo(f"Generate test data: {generate_data}")
+    click.echo(f"Input file: {input_file if input_file else 'None (using generated data)'}")
 
-    if generate_data:
+    if input_file and generate_data:
+        click.echo("Warning: Both --input-file and --generate-test-data specified. Using input file.")
+        generate_data = False
+
+    if generate_data and not input_file:
         click.echo("Generating test data...")
         df_company_a, df_company_b = generate_test_data(multi_table=multi_table)
         click.echo(f"Company A data: {len(df_company_a)} records")
@@ -50,9 +61,15 @@ def main(multi_table, generate_data, table_name):
             click.echo(f"Company B data: {len(df_company_b)} records")
         else:
             click.echo("Single-table mode: Company B data included in combined dataset")
+    elif input_file:
+        click.echo(f"Using input file: {input_file}")
+        # Hier könnte Code zum Laden der CSV-Datei und zum Erstellen der DataFrames df_company_a und df_company_b eingefügt werden
+    else:
+        click.echo("No data generation or input file specified. Exiting...")
+        return
 
     click.echo("\nSetting up DuckDB...")
-    con = setup_duckdb(generate_test_data=generate_data, multi_table=multi_table)
+    con = setup_duckdb(generate_test_data=generate_data, multi_table=multi_table, input_file=input_file)
 
     click.echo("\nConfiguring Splink...")
     linker = configure_splink(con, multi_table=multi_table, table_name=table_name)
