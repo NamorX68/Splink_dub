@@ -1,48 +1,48 @@
-# Splink Duplikaterkennungs-POC - Projektzusammenfassung
+# Splink Duplikaterkennungs-POC - Meine Projektnotizen
 
-## Projektzweck und Funktionalität
+## Was ich gebaut habe
 
-Dieses Projekt implementiert einen **modularen Proof-of-Concept für Duplikaterkennung** in Python mit deutscher Datenstruktur. Das System kann sowohl **Multi-Table-Linking** (Verknüpfung zwischen verschiedenen Datenquellen) als auch **Single-Table-Deduplication** (Duplikaterkennung innerhalb einer Datenquelle) durchführen.
+Ein **modularer POC für Duplikaterkennung** in Python mit deutschen Daten. Das System kann sowohl **Multi-Table-Linking** (Verknüpfung zwischen verschiedenen Tabellen) als auch **Single-Table-Deduplication** (Duplikate in einer Tabelle finden) machen.
 
-### Kernfunktionen
-- **Flexible Eingabeverarbeitung**: Unterstützt generierte Testdaten, Multi-Table-Szenarien und beliebige CSV-Eingabedateien
-- **Deutsche Datenstruktur**: Arbeitet mit deutschen Spaltennamen (SATZNR, PARTNERTYP, NAME, VORNAME, etc.)
-- **Automatische Modusauswahl**: Erkennt automatisch Single-File vs. Multi-Table-Verarbeitung
-- **Robuste Pipeline**: Vollständige Pipeline von Datengenerierung bis Evaluation
+### Was es kann
+- **Flexible Eingaben**: Generierte Testdaten, Multi-Table-Szenarien, eigene CSV-Dateien
+- **Deutsche Datenstruktur**: Arbeitet mit deutschen Spaltennamen (SATZNR, PARTNERTYP, NAME, etc.)
+- **Automatische Modusauswahl**: Erkennt selbst ob Single-File oder Multi-Table
+- **Komplette Pipeline**: Von Datengenerierung bis Evaluation
 
-## Technologie-Stack
+## Tech-Stack
 
 ### Haupttechnologien
-- **Python 3.11+**: Hauptprogrammiersprache
-- **Splink v4**: Spezialisierte Bibliothek für probabilistische Record Linkage und Duplikaterkennung
-- **DuckDB**: In-Memory SQL-Datenbank für performante Datenverarbeitung
-- **uv**: Moderner Python Package Manager für Dependency Management
-- **Click**: Framework für Command Line Interface (CLI)
+- **Python 3.11+**: Hauptsprache
+- **Splink v4**: Record Linkage und Duplikaterkennung
+- **DuckDB**: In-Memory SQL-Datenbank
+- **uv**: Package Manager
+- **Click**: CLI Framework
 
-### Weitere Dependencies
-- **pandas**: Datenmanipulation und -analyse
-- **matplotlib**: Visualisierung von Match-Probability-Verteilungen
-- **faker**: Generierung realistischer Testdaten
+### Weitere Libraries
+- **pandas**: Datenmanipulation
+- **matplotlib**: Visualisierung
+- **faker**: Testdaten generieren
 
-## Projektarchitektur
+## Meine Projektstruktur
 
-### Modulare Struktur
+### Module
 ```
 src/dublette/
-├── app.py                 # CLI-Hauptanwendung (Click-basiert)
+├── app.py                 # CLI-Hauptanwendung
 ├── data/
-│   └── generation.py      # Testdatengenerierung mit deutschem Schema
+│   └── generation.py      # Testdaten generieren
 ├── database/
-│   └── connection.py      # DuckDB-Setup und Datenbankoperationen
+│   └── connection.py      # DuckDB-Setup
 ├── detection/
-│   └── splink_config.py   # Splink-Konfiguration für deutsche Daten
+│   └── splink_config.py   # Splink-Konfiguration
 └── evaluation/
-    └── metrics.py         # Evaluation und Visualisierung
+    └── metrics.py         # Evaluation und Plots
 ```
 
-### Datenmodell (Deutsches Schema)
-- **SATZNR**: Eindeutige Datensatz-ID
-- **PARTNERTYP**: Typ des Partners (Person/Unternehmen)
+### Datenmodell (Deutsche Spaltennamen)
+- **SATZNR**: Eindeutige ID
+- **PARTNERTYP**: Person/Unternehmen
 - **NAME**: Nachname/Firmenname
 - **VORNAME**: Vorname
 - **GEBURTSDATUM**: Geburtsdatum
@@ -50,120 +50,119 @@ src/dublette/
 - **LAND**: Land
 - **POSTLEITZAHL**: PLZ
 - **GEMEINDESCHLUESSEL**: Gemeindeschlüssel
-- **ORT**: Ort/Stadt
-- **ADRESSZEILE**: Adresszeile
+- **ORT**: Stadt
+- **ADRESSZEILE**: Adresse
 
-## Anwendungsmodi
+## Wie ich es verwende
 
 ### 1. Multi-Table-Linking
-Verknüpfung zwischen zwei separaten Datentabellen (`company_a` und `company_b`):
+Verknüpfung zwischen zwei Tabellen (`company_a` und `company_b`):
 ```bash
 uv run python src/dublette/app.py --multi-table --generate-test-data
 ```
 
 ### 2. Single-Table-Deduplication
-Duplikaterkennung innerhalb einer kombinierten Datentabelle:
+Duplikate in einer Tabelle finden:
 ```bash
 uv run python src/dublette/app.py --generate-test-data
 ```
 
-### 3. Custom Input File
-Verarbeitung beliebiger CSV-Dateien:
+### 3. Eigene CSV-Dateien
 ```bash
 uv run python src/dublette/app.py --input-file output/partnerdaten.csv
 ```
 
 ## Splink-Konfiguration
 
-### Blocking Rules (Performance-Optimierung)
-- **Exact Match auf PLZ**: `l.POSTLEITZAHL = r.POSTLEITZAHL`
+### Blocking Rules (für Performance)
+- **PLZ exact match**: `l.POSTLEITZAHL = r.POSTLEITZAHL`
 - **Soundex auf Namen**: `soundex(l.NAME) = soundex(r.NAME)`
 
-### Comparison Rules (Matching-Algorithmen)
-- **NAME**: Jaro-Winkler-Ähnlichkeit mit Schwellwerten
+### Comparison Rules (Matching)
+- **NAME**: Jaro-Winkler-Ähnlichkeit 
 - **VORNAME**: Jaro-Winkler-Ähnlichkeit
 - **GEBURTSDATUM**: Exakte und Levenshtein-Vergleiche
-- **POSTLEITZAHL**: Exakte Übereinstimmung
+- **POSTLEITZAHL**: Exact match
 - **ORT**: Jaro-Winkler-Ähnlichkeit
 
-## Ausgaben und Ergebnisse
+## Output-Dateien (im output/ Verzeichnis)
 
-### Generierte Dateien (output/)
+### Was generiert wird
 - **Testdaten**: `company_a_data.csv`, `company_b_data.csv`, `company_data.csv`
 - **Predictions**: `predictions.csv` (Match-Wahrscheinlichkeiten)
-- **Target Table**: `target_table.csv` (Deduplizierte Ergebnisse)
-- **Visualisierung**: `match_probability_distribution.png`
+- **Target Table**: `target_table.csv` (deduplizierte Ergebnisse)
+- **Plot**: `match_probability_distribution.png`
 
-### Git-Integration
-- **.gitignore**: Schließt alle Output-Dateien (CSV, PNG) automatisch aus
-- **Versionskontrolle**: Nur Quellcode wird versioniert, generierte Daten bleiben lokal
+### Git-Setup
+- **.gitignore**: Alle Output-Dateien (CSV, PNG) werden ignoriert
+- **Versionskontrolle**: Nur Code wird versioniert, Output bleibt lokal
 
-## CLI-Nutzung
+## CLI-Kommandos
 
 ### Hauptoptionen
-- `--multi-table`: Aktiviert Multi-Table-Modus
-- `--generate-test-data`: Generiert neue Testdaten
-- `--input-file PATH`: Verwendet eigene CSV-Datei als Input
-- `--help`: Zeigt alle verfügbaren Optionen
+- `--multi-table`: Multi-Table-Modus
+- `--generate-test-data`: Neue Testdaten generieren
+- `--input-file PATH`: Eigene CSV-Datei verwenden
+- `--help`: Alle Optionen anzeigen
 
-### Beispiel-Workflows
+### Meine häufigsten Workflows
 ```bash
-# Kompletter Workflow mit neuen Testdaten (Single-Table)
+# Standard: Single-Table mit neuen Testdaten
 uv run python src/dublette/app.py --generate-test-data
 
-# Multi-Table-Linking mit frischen Daten
+# Multi-Table mit frischen Daten
 uv run python src/dublette/app.py --multi-table --generate-test-data
 
-# Verarbeitung eigener Daten
+# Eigene Daten verarbeiten
 uv run python src/dublette/app.py --input-file meine_daten.csv
 
-# Re-Run mit existierenden Daten
+# Nochmal laufen lassen mit existierenden Daten
 uv run python src/dublette/app.py
 ```
 
-## Entwicklungsumgebung
+## Setup und Development
 
-### Setup
+### Installation
 ```bash
-# Projekt klonen
+# Repo klonen
 git clone <repository-url>
 cd Splink_dub
 
 # Dependencies installieren
 uv sync
 
-# Anwendung ausführen
+# Laufen lassen
 uv run python src/dublette/app.py --help
 ```
 
 ### Package Management
-- **uv.lock**: Locked Dependencies für reproduzierbare Builds
-- **pyproject.toml**: Projekt-Konfiguration und Dependencies
+- **uv.lock**: Locked Dependencies
+- **pyproject.toml**: Projekt-Config
 - **CLI Entry Point**: `dublette = "dublette.app:main"`
 
-## Besondere Features
+## Was besonders ist
 
-### Intelligente Datenverarbeitung
-- **Automatische Modusauswahl**: Erkennt anhand verfügbarer Tabellen den richtigen Verarbeitungsmodus
-- **Flexible Input-Behandlung**: Unterstützt verschiedene CSV-Formate und Delimiter
-- **Robuste Fehlerbehandlung**: Detaillierte Fehlermeldungen und Fallback-Strategien
+### Intelligente Verarbeitung
+- **Automatische Modusauswahl**: Erkennt selbst ob Single- oder Multi-Table
+- **Flexible Inputs**: Verschiedene CSV-Formate und Delimiter
+- **Robuste Fehlerbehandlung**: Gute Fehlermeldungen und Fallbacks
 
 ### Performance-Optimierungen
 - **DuckDB In-Memory**: Schnelle SQL-Operationen ohne Datei-I/O
-- **Splink Blocking**: Reduziert Vergleichspaare durch intelligente Vorfilterung
-- **Efficient Deduplication**: Connected Components-Algorithmus für Gruppierung
+- **Splink Blocking**: Reduziert Vergleichspaare durch Vorfilterung
+- **Efficient Deduplication**: Connected Components für Gruppierung
 
 ### Deutsche Lokalisierung
 - **Spaltennamen**: Vollständig deutsche Bezeichnungen
-- **Testdaten**: Realistische deutsche Namen, Orte und Adressen
-- **Dokumentation**: Deutsche Begriffe und Erklärungen
+- **Testdaten**: Deutsche Namen, Orte und Adressen
+- **Dokumentation**: Deutsche Begriffe
 
-## Einsatzgebiete
+## Wofür ich es verwende
 
-- **Datenbereinigung**: Entfernung von Duplikaten in Kundendatenbanken
-- **Data Matching**: Verknüpfung von Datensätzen aus verschiedenen Quellen
-- **Master Data Management**: Erstellung von Golden Records
+- **Datenbereinigung**: Duplikate in Kundendatenbanken entfernen
+- **Data Matching**: Datensätze aus verschiedenen Quellen verknüpfen
+- **Master Data Management**: Golden Records erstellen
 - **Compliance**: DSGVO-konforme Datenkonsolidierung
-- **Prototyping**: Schnelle POCs für Record Linkage-Projekte
+- **Prototyping**: Schnelle POCs für Record Linkage
 
-Diese Zusammenfassung bietet alle notwendigen Informationen, um das Projekt zu verstehen und neue Entwicklungszyklen zu starten.
+**Das ist mein Splink-POC - modular, deutsch und ready-to-use!**

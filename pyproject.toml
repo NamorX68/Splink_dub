@@ -11,6 +11,12 @@ dependencies = [
     "matplotlib",
     "seaborn",
     "click",
+    "jellyfish>=1.2.0",
+]
+
+[project.optional-dependencies]
+enhanced = [
+    "jellyfish>=1.0.0",  # For phonetic and fuzzy string matching
 ]
 
 [project.scripts]

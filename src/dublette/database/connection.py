@@ -189,19 +189,14 @@ def create_target_table(con, df_predictions, threshold=0.8):
         # Use single-file deduplication logic
         return create_deduplication_target_table(con, df_predictions, threshold)
     
-    # Original multi-table logic
-    # Filter predictions by threshold
-    df_matches = df_predictions[df_predictions["match_probability"] >= threshold]
-
-    # Create a temporary table with matches
-    con.execute("DROP TABLE IF EXISTS matches")
-    con.execute("CREATE TABLE matches AS SELECT * FROM df_matches")
+    # Original multi-table logic - simplified without complex matching
+    # Just create a combined target table from both sources
 
     # Create the target table
     con.execute("""
     CREATE VIEW all_records AS
     SELECT 
-        CAST(SATZNR_l AS VARCHAR) AS unique_id,
+        CAST(SATZNR AS VARCHAR) AS unique_id,
         SATZNR,
         PARTNERTYP,
         NAME,
@@ -219,7 +214,7 @@ def create_target_table(con, df_predictions, threshold=0.8):
     UNION ALL
 
     SELECT 
-        CAST(SATZNR_r AS VARCHAR) AS unique_id,
+        CAST(SATZNR AS VARCHAR) AS unique_id,
         SATZNR,
         PARTNERTYP,
         NAME,
@@ -237,17 +232,6 @@ def create_target_table(con, df_predictions, threshold=0.8):
 
     con.execute("""
     CREATE TABLE target_table AS
-    WITH ranked_records AS (
-        SELECT 
-            ar.*,
-            COALESCE(CAST(m.unique_id AS VARCHAR), CAST(m.group_id AS VARCHAR)) AS group_id,
-            ROW_NUMBER() OVER(
-                PARTITION BY COALESCE(CAST(m.unique_id AS VARCHAR), CAST(m.group_id AS VARCHAR)) 
-                ORDER BY ar.unique_id DESC
-            ) AS rn
-        FROM all_records ar
-        LEFT JOIN matches m ON ar.unique_id = m.unique_id
-    )
     SELECT 
         SATZNR,
         PARTNERTYP,
@@ -260,10 +244,8 @@ def create_target_table(con, df_predictions, threshold=0.8):
         GEMEINDESCHLUESSEL,
         ORT,
         ADRESSZEILE,
-        source,
-        group_id
-    FROM ranked_records
-    WHERE rn = 1
+        source
+    FROM all_records
     """)
 
     # Return the target table as DataFrame
@@ -334,12 +316,9 @@ def create_deduplication_target_table(con, df_predictions, threshold=0.8):
     Returns:
         pd.DataFrame: Deduplicated target table
     """
-    # Filter predictions by threshold
-    df_matches = df_predictions[df_predictions["match_probability"] >= threshold]
-
-    # Create a temporary table with matches
+    # Create a temporary table with high-confidence matches
     con.execute("DROP TABLE IF EXISTS dedup_matches")
-    con.execute("CREATE TABLE dedup_matches AS SELECT * FROM df_matches")
+    con.execute("CREATE TABLE dedup_matches AS SELECT * FROM df_predictions WHERE match_probability >= ?", [threshold])
 
     # Check if combined_data exists, if not create it from company_data or company_a/company_b
     tables = con.execute("SHOW TABLES").fetchall()

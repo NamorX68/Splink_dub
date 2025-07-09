@@ -4,6 +4,8 @@
 
 Diese Anwendung führt Duplikaterkennung mit Splink und DuckDB durch. Sie unterstützt sowohl **Eintabellen-Deduplication** als auch **Mehrtabellen-Linking**.
 
+**NEU: Umfassende Datennormalisierung** für verbesserte Duplikaterkennung mit deutschen Datenstrukturen.
+
 ## Installation
 
 Verwenden Sie uv für die Installation der Dependencies:
@@ -11,6 +13,19 @@ Verwenden Sie uv für die Installation der Dependencies:
 ```bash
 uv sync
 ```
+
+## Neue Normalisierungsfeatures
+
+### Automatische Datennormalisierung
+
+Das System normalisiert die Daten automatisch in folgenden Schritten:
+
+1. **Grundnormalisierung**: Großbuchstaben, Trimmen, Unicode (ä→AE, ö→OE, ü→UE, ß→SS)
+2. **Adressnormalisierung**: STR./STRAßE → STRASSE, PL. → PLATZ
+3. **Namennormalisierung**: Phonetische Ähnlichkeit (CH→K, PH→F, TH→T)
+4. **Ortsnormalisierung**: "Frankfurt am Main" → "Frankfurt A Main"
+5. **Datumsnormalisierung**: Verschiedene Formate → YYYY-MM-DD
+6. **Finale Bereinigung**: Leerzeichen und Sonderzeichen entfernen
 
 ## Verwendung
 
@@ -21,6 +36,22 @@ Die Anwendung unterstützt folgende Parameter:
 - `--multi-table`: Aktiviert Mehrtabellen-Verarbeitung (Standard: False = Eintabellen-Deduplication)
 - `--generate-test-data`: Generiert neue Testdaten (Standard: False = verwendet existierende Daten)
 - `--table-name TEXT`: Name der Tabelle für Eintabellen-Verarbeitung (Standard: 'company_data')
+- `--input-file PATH`: Pfad zu einer CSV-Datei mit Partnerdaten
+- `--normalize-data`: Datennormalisierung anwenden (Standard: True)
+- `--normalize-existing`: Nur bestehende Daten normalisieren, ohne Duplikaterkennung
+
+### Neue Normalisierungskommandos
+
+```bash
+# Nur bestehende Daten normalisieren
+uv run python src/dublette/app.py --normalize-existing
+
+# Eigene CSV-Datei normalisieren und verarbeiten  
+uv run python src/dublette/app.py --input-file meine_daten.csv
+
+# Ohne Normalisierung arbeiten
+uv run python src/dublette/app.py --generate-test-data --no-normalize-data
+```
 
 ### Beispiele
 

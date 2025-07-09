@@ -9,19 +9,22 @@ import numpy as np
 from datetime import datetime
 import random
 import os
+from .normalization import normalize_partner_data
 
 # Set random seed for reproducibility
 np.random.seed(42)
 random.seed(42)
 
 
-def generate_test_data(multi_table=True):
+def generate_test_data(multi_table=True, apply_normalization=True, enhanced_normalization=False):
     """
     Generate test data for two source tables with standardized partner data schema.
     The tables represent partner data using the new standardized column schema.
 
     Args:
         multi_table (bool): If True, generates data for both tables. If False, generates more data for company_a.
+        apply_normalization (bool): If True, applies data normalization to improve duplicate detection.
+        enhanced_normalization (bool): If True, uses enhanced algorithms (requires optional dependencies).
 
     The data is saved to CSV files and includes the following fields:
     - SATZNR (Record Number / Unique ID)
@@ -256,14 +259,123 @@ def generate_test_data(multi_table=True):
     df_company_a["GEBURTSDATUM"] = df_company_a["GEBURTSDATUM"].dt.strftime("%Y-%m-%d")
     df_company_b["GEBURTSDATUM"] = df_company_b["GEBURTSDATUM"].dt.strftime("%Y-%m-%d")
 
+    # Apply normalization if requested
+    if apply_normalization:
+        print("\nAnwenden der Datennormalisierung...")
+        if enhanced_normalization:
+            print("🚀 Enhanced Normalization aktiviert")
+            df_company_a = normalize_partner_data(df_company_a, normalize_for_splink=True, enhanced_mode=True)
+            df_company_b = normalize_partner_data(df_company_b, normalize_for_splink=True, enhanced_mode=True)
+        else:
+            df_company_a = normalize_partner_data(df_company_a, normalize_for_splink=True)
+            df_company_b = normalize_partner_data(df_company_b, normalize_for_splink=True)
+        print("Normalisierung abgeschlossen.")
+
     # Save data to CSV files
     # Get the project root directory (3 levels up from this file)
     project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
     output_dir = os.path.join(project_root, "output")
 
-    df_company_a.to_csv(os.path.join(output_dir, "company_a_data.csv"), index=False)
-    df_company_b.to_csv(os.path.join(output_dir, "company_b_data.csv"), index=False)
-
-    print("Saved test data to CSV files: output/company_a_data.csv and output/company_b_data.csv")
+    # Save raw data (before normalization) and normalized data
+    if apply_normalization:
+        df_company_a.to_csv(os.path.join(output_dir, "company_a_data.csv"), index=False)
+        df_company_b.to_csv(os.path.join(output_dir, "company_b_data.csv"), index=False)
+        print("Saved normalized test data to CSV files: output/company_a_data.csv and output/company_b_data.csv")
+    else:
+        df_company_a.to_csv(os.path.join(output_dir, "company_a_data.csv"), index=False)
+        df_company_b.to_csv(os.path.join(output_dir, "company_b_data.csv"), index=False)
+        print("Saved test data to CSV files: output/company_a_data.csv and output/company_b_data.csv")
 
     return df_company_a, df_company_b
+
+
+def normalize_csv_file(
+    input_file_path: str, output_file_path: str = None, normalize_for_splink: bool = True, enhanced_mode: bool = False
+) -> pd.DataFrame:
+    """
+    Normalisiert eine bestehende CSV-Datei mit Partnerdaten.
+
+    Args:
+        input_file_path (str): Pfad zur Eingabe-CSV-Datei
+        output_file_path (str): Pfad zur Ausgabe-CSV-Datei (optional)
+        normalize_for_splink (bool): Ob finale Bereinigung für Splink durchgeführt werden soll
+        enhanced_mode (bool): Ob erweiterte Algorithmen verwendet werden sollen
+
+    Returns:
+        pd.DataFrame: Normalisiertes DataFrame
+    """
+    print(f"Lade CSV-Datei: {input_file_path}")
+
+    try:
+        # Versuche verschiedene Trennzeichen
+        for separator in [",", ";", "\t"]:
+            try:
+                df = pd.read_csv(input_file_path, sep=separator)
+                if len(df.columns) > 1:  # Erfolgreich gelesen
+                    print(f"CSV erfolgreich gelesen mit Trennzeichen: '{separator}'")
+                    break
+            except Exception:
+                continue
+        else:
+            # Fallback
+            df = pd.read_csv(input_file_path)
+
+    except Exception as e:
+        print(f"Fehler beim Laden der CSV-Datei: {e}")
+        return None
+
+    print(f"Geladene Daten: {len(df)} Zeilen, {len(df.columns)} Spalten")
+    print(f"Spalten: {list(df.columns)}")
+
+    # Normalisierung anwenden
+    if enhanced_mode:
+        print("🚀 Enhanced Mode aktiviert")
+        df_normalized = normalize_partner_data(df, normalize_for_splink=normalize_for_splink, enhanced_mode=True)
+    else:
+        df_normalized = normalize_partner_data(df, normalize_for_splink=normalize_for_splink)
+
+    # Speichern wenn Ausgabepfad angegeben
+    if output_file_path:
+        df_normalized.to_csv(output_file_path, index=False)
+        print(f"Normalisierte Daten gespeichert: {output_file_path}")
+
+    return df_normalized
+
+
+def normalize_existing_test_data():
+    """
+    Normalisiert die vorhandenen Testdaten im output/ Verzeichnis.
+
+    Praktisch für nachträgliche Normalisierung ohne Neugenerierung der Daten.
+    """
+    # Get the project root directory
+    project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
+    output_dir = os.path.join(project_root, "output")
+
+    files_to_normalize = ["company_a_data.csv", "company_b_data.csv", "company_data.csv", "partnerdaten.csv"]
+
+    for filename in files_to_normalize:
+        file_path = os.path.join(output_dir, filename)
+
+        if os.path.exists(file_path):
+            print(f"\nNormalisiere {filename}...")
+
+            # Backup erstellen
+            backup_path = os.path.join(output_dir, f"{filename}.backup")
+            if not os.path.exists(backup_path):
+                import shutil
+
+                shutil.copy2(file_path, backup_path)
+                print(f"Backup erstellt: {backup_path}")
+
+            # Normalisieren und überschreiben
+            df_normalized = normalize_csv_file(file_path, file_path, normalize_for_splink=True)
+
+            if df_normalized is not None:
+                print(f"✓ {filename} erfolgreich normalisiert")
+            else:
+                print(f"✗ Fehler bei der Normalisierung von {filename}")
+        else:
+            print(f"Datei nicht gefunden: {file_path}")
+
+    print("\nNormalisierung aller vorhandenen Dateien abgeschlossen!")
