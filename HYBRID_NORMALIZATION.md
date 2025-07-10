@@ -1,21 +1,21 @@
-# Hybride Normalisierung - Meine Implementierung
+# Hybride Normalisierung - Enhanced Implementation
 
-## Was ich gemacht habe
+## Konzept
 
-Ich habe meine bestehende Normalisierung erweitert, aber so dass alles backward compatible bleibt. Die Grundidee: Standard-Normalisierung als Basis, optional erweiterte Algorithmen für bessere Qualität.
+Das System implementiert eine hybride Normalisierungsstrategie mit backward compatibility. Die Grundidee: bewährte Standard-Normalisierung als Basis, optional erweiterte Algorithmen für bessere Qualität.
 
-## ✅ Was funktioniert
+## ✅ Funktionsweise
 
-### 1. **Meine bisherige Normalisierung (unverändert)**
-- ✅ Alles bleibt wie es war
-- ✅ Deutsche Lokalisierung (STR./STRAßE → STRASSE) funktioniert weiter
-- ✅ Phonetische Regeln (CH→K, PH→F, TH→T) bleiben
-- ✅ Keine neuen Dependencies nötig
+### 1. **Standard-Normalisierung (Basis)**
+- ✅ Bewährte deutsche Lokalisierung (STR./STRAßE → STRASSE)
+- ✅ Phonetische Regeln (CH→K, PH→F, TH→T) 
+- ✅ Keine neuen Dependencies erforderlich
+- ✅ Vollständig backward compatible
 
-### 2. **Neue Enhanced-Funktionen (optional)**
+### 2. **Enhanced-Funktionen (Optional)**
 - ✅ `normalize_name_enhanced()` - Soundex für phonetisch ähnliche Namen
-- ✅ `normalize_city_enhanced()` - Fuzzy-Matching für Städte
-- ✅ `normalize_address_enhanced()` - Bessere Adressnormalisierung
+- ✅ `normalize_city_enhanced()` - Fuzzy-Matching für deutsche Städte
+- ✅ `normalize_address_enhanced()` - Erweiterte Adressnormalisierung
 
 ### 3. **Flexible Hauptfunktion**
 ```python
@@ -29,24 +29,186 @@ normalize_partner_data(df,
 
 ### 4. **CLI erweitert**
 ```bash
-# Wie bisher (Standard)
-uv run python src/dublette/app.py --generate-test-data
+# Standard (wie immer)
+uv run python src/dublette/app.py --input-file output/partner_test.csv
 
-# Neu: Mit Enhanced-Features
-uv run python src/dublette/app.py --generate-test-data --enhanced-normalization
+# Enhanced Features
+uv run python src/dublette/app.py --input-file output/partner_test.csv --enhanced-normalization
 
-# jellyfish installieren wenn ich Enhanced will
-uv sync --extra enhanced
+# jellyfish installieren für Enhanced-Mode
+uv add jellyfish
 ```
 
-## 🚀 Wie ich es nutze
+## 🚀 Verwendung
 
-### Standard-Workflow (wie immer)
+### Standard-Workflow (bewährt)
 ```bash
-# Basis-Normalisierung (meine bewährte)
+# Basis-Normalisierung (Standard)
+uv run python src/dublette/app.py --input-file output/partner_test.csv
+
+# Ohne Normalisierung (Debug)
+uv run python src/dublette/app.py --input-file output/partner_test.csv --no-normalize-data
+```
+
+### Enhanced-Workflow (neu)
+```bash
+# Mit allen Enhanced-Features
+uv run python src/dublette/app.py --input-file output/partner_test.csv --enhanced-normalization
+
+# Multi-Table + Enhanced
+uv run python src/dublette/app.py --multi-table --generate-test-data --enhanced-normalization
+
+# Eigene CSV + Enhanced
+uv run python src/dublette/app.py --input-file data.csv --enhanced-normalization
+```
+
+## 📦 Dependencies (optional)
+
+### Installation
+```bash
+# Standard Installation (keine neuen Dependencies)
+uv sync
+
+# Mit Enhanced-Features
+uv add jellyfish
+
+# Prüfung im Code
+try:
+    import jellyfish
+    # Enhanced-Features verfügbar
+except ImportError:
+    # Fallback auf Standard (kein Fehler)
+```
+
+### Automatische Erkennung
+- System checkt automatisch ob `jellyfish` verfügbar ist
+- Falls nicht: Graceful fallback auf Standard-Algorithmen
+- Nur Info-Hinweise, keine Crashes
+
+## 🎯 Enhanced-Features im Detail
+
+### 1. **Phonetische Namen**
+```python
+# Standard: "Christian" → "KRISTIAN"
+# Enhanced: "Christian" → "KRISTIAN_K623"  # Mit Soundex-Code
+
+# Erkennt jetzt:
+"KRISTIAN_K623" ≈ "CHRISTIAN_K623"  # Beide gleicher Soundex!
+"FILIP_F410" ≈ "PHILIPP_F410"
+```
+
+### 2. **Fuzzy City-Matching**
+```python
+# Standard: "Muenchen" → "MUENCHEN" 
+# Enhanced: Fuzzy-Score gegen Liste deutscher Großstädte
+
+# Erkennt:
+"MUENCHEN" ≈ "MÜNCHEN" (Jaro-Winkler: 0.95)
+"KOELN" ≈ "KÖLN" (automatische Korrektur)
+```
+
+### 3. **Erweiterte Adressen**
+```python
+# Standard: "Hauptstr. 123 A" → "HAUPTSTRASSE123A"
+# Enhanced: + "POSTFACH" → "PF", normalisierte Hausnummern
+```
+
+## 🛠️ Technische Details
+
+### Backward Compatibility
+- ✅ Alle vorherigen Funktionen bleiben unverändert
+- ✅ Bestehende Parameter identisch
+- ✅ CSV-Verarbeitung kompatibel
+- ✅ Keine Breaking Changes
+
+### Performance
+- 🔄 Enhanced ca. 20-30% langsamer (wegen Fuzzy-Matching)
+- ⚡ Standard weiterhin sehr schnell
+- 💾 Minimaler zusätzlicher Speicherbedarf
+
+### Dependencies
+- 📦 `jellyfish` nur für Enhanced-Mode erforderlich
+- 🔄 Automatische Verfügbarkeitsprüfung
+- 🚫 Keine erzwungenen Dependencies
+
+## 📊 Standard vs Enhanced - Vergleich
+
+| Feature | Standard | Enhanced |
+|---------|----------|----------|
+| Deutsche Umlaute | ✅ ä→AE | ✅ ä→AE |
+| Phonetische Regeln | ✅ CH→K | ✅ CH→K + Soundex |
+| Adress-Abkürzungen | ✅ STR→STRASSE | ✅ + Hausnummern |
+| Orts-Normalisierung | ✅ "am Main"→"A" | ✅ + Fuzzy-Matching |
+| Performance | ⚡ Sehr schnell | 🔄 Gut |
+| Dependencies | 🚫 Keine | 📦 jellyfish (optional) |
+| Duplikat-Qualität | ✅ Gut | 🚀 Sehr gut |
+
+## 🎯 Empfehlungen
+
+### Zum Starten: **Standard Mode**
+- Bewährte Normalisierung verwenden
+- Keine neuen Dependencies
+- Bereits sehr gute Ergebnisse
+
+### Zum Optimieren: **Enhanced Mode**
+```bash
+# Installation
+uv add jellyfish
+
+# Testen
+uv run python src/dublette/app.py --input-file output/partner_test.csv --enhanced-normalization
+
+# Duplikaterkennung vergleichen
+```
+
+### Produktiv: **Je nach Anforderung**
+```bash
+# Development/Testing
+--enhanced-normalization
+
+# Produktion (Performance-kritisch)
+# Standard ohne Flag
+
+# Produktion (Qualität-kritisch)  
+--enhanced-normalization
+```
+
+## Implementierung
+
+### Code-Struktur
+```python
+def normalize_partner_data(df, enhanced_mode=False, ...):
+    # Enhanced mode aktiviert alle Erweiterungen
+    if enhanced_mode:
+        phonetic_names = True
+        fuzzy_cities = True
+        nlp_addresses = True
+    
+    # Check optional dependencies
+    if phonetic_names or fuzzy_cities:
+        try:
+            import jellyfish
+            # Enhanced verfügbar
+        except ImportError:
+            # Graceful fallback
+```
+
+### Hybride Ansatz
+- Basis-Funktionen (ohne Dependencies) als Fundament
+- Enhanced-Funktionen erweitern Basis-Output
+- Automatische Fallback-Mechanismen
+- Keine Breaking Changes
+
+**Fazit:** Hybride Lösung bietet maximale Flexibilität - bewährte Basis + optionale Verbesserungen ohne Risiko!
+
+## 🚀 Verwendung
+
+### Standard-Workflow (bewährt)
+```bash
+# Basis-Normalisierung (Standard)
 uv run python src/dublette/app.py --generate-test-data
 
-# Ohne Normalisierung (falls ich mal will)
+# Ohne Normalisierung (Debug)
 uv run python src/dublette/app.py --generate-test-data --no-normalize-data
 ```
 
@@ -66,7 +228,7 @@ uv run python src/dublette/app.py --input-file data.csv --enhanced-normalization
 
 ### Installation
 ```bash
-# Normal installieren (wie bisher)
+# Standard Installation (keine neuen Dependencies)
 uv sync
 
 # Mit Enhanced-Features
@@ -76,17 +238,17 @@ uv sync --extra enhanced
 uv add jellyfish
 ```
 
-### Wie es funktioniert
-- System checkt automatisch ob `jellyfish` da ist
-- Falls nicht: Fallback auf Standard (kein Fehler)
+### Automatische Erkennung
+- System checkt automatisch ob `jellyfish` verfügbar ist
+- Falls nicht: Graceful fallback auf Standard-Algorithmen
 - Nur Info-Hinweise, keine Crashes
 
-## 🎯 Was Enhanced bringt
+## 🎯 Enhanced-Features im Detail
 
 ### 1. **Phonetische Namen**
 ```python
 # Standard: "Christian" → "KRISTIAN"
-# Enhanced: "Christian" → "KRISTIAN_K623"  # Mit Soundex
+# Enhanced: "Christian" → "KRISTIAN_K623"  # Mit Soundex-Code
 
 # Erkennt jetzt:
 "KRISTIAN_K623" ≈ "CHRISTIAN_K623"  # Beide gleicher Soundex!
@@ -96,37 +258,38 @@ uv add jellyfish
 ### 2. **Fuzzy City-Matching**
 ```python
 # Standard: "Muenchen" → "MUENCHEN" 
-# Enhanced: Fuzzy-Score gegen Liste deutscher Städte
+# Enhanced: Fuzzy-Score gegen Liste deutscher Großstädte
 
 # Erkennt:
 "MUENCHEN" ≈ "MÜNCHEN" (Jaro-Winkler: 0.95)
-"KOELN" ≈ "KÖLN" 
+"KOELN" ≈ "KÖLN" (automatische Korrektur)
 ```
 
-### 3. **Bessere Adressen**
+### 3. **Erweiterte Adressen**
 ```python
 # Standard: "Hauptstr. 123 A" → "HAUPTSTRASSE123A"
-# Enhanced: + "POSTFACH" → "PF", bessere Hausnummern
+# Enhanced: + "POSTFACH" → "PF", normalisierte Hausnummern
 ```
 
-## 🛠️ Technische Infos
+## 🛠️ Technische Details
 
 ### Backward Compatibility
-- ✅ Alles was vorher lief, läuft weiter
-- ✅ Alle Parameter bleiben gleich
-- ✅ CSV-Verarbeitung unverändert
+- ✅ Alle vorherigen Funktionen bleiben unverändert
+- ✅ Bestehende Parameter identisch
+- ✅ CSV-Verarbeitung kompatibel
+- ✅ Keine Breaking Changes
 
 ### Performance
 - 🔄 Enhanced ca. 20-30% langsamer (wegen Fuzzy-Matching)
-- ⚡ Standard weiterhin super schnell
-- 💾 Kaum mehr Speicher nötig
+- ⚡ Standard weiterhin sehr schnell
+- 💾 Minimaler zusätzlicher Speicherbedarf
 
 ### Dependencies
-- 📦 `jellyfish` nur wenn ich Enhanced will
-- 🔄 Automatische Erkennung
+- 📦 `jellyfish` nur für Enhanced-Mode erforderlich
+- 🔄 Automatische Verfügbarkeitsprüfung
 - 🚫 Keine erzwungenen Dependencies
 
-## 📊 Standard vs Enhanced - mein Vergleich
+## 📊 Standard vs Enhanced - Vergleich
 
 | Feature | Standard | Enhanced |
 |---------|----------|----------|
@@ -134,32 +297,64 @@ uv add jellyfish
 | Phonetische Regeln | ✅ CH→K | ✅ CH→K + Soundex |
 | Adress-Abkürzungen | ✅ STR→STRASSE | ✅ + Hausnummern |
 | Orts-Normalisierung | ✅ "am Main"→"A" | ✅ + Fuzzy-Matching |
-| Performance | ⚡ Super schnell | 🔄 Noch gut |
+| Performance | ⚡ Sehr schnell | 🔄 Gut |
 | Dependencies | 🚫 Keine | 📦 jellyfish (optional) |
 | Duplikat-Qualität | ✅ Gut | 🚀 Sehr gut |
 
-## 🎯 Meine Empfehlung für mich
+## 🎯 Empfehlungen
 
 ### Zum Starten: **Standard Mode**
-- Nutze meine bewährte Normalisierung
+- Bewährte Normalisierung verwenden
 - Keine neuen Dependencies
-- Läuft schon sehr gut
+- Bereits sehr gute Ergebnisse
 
 ### Zum Optimieren: **Enhanced Mode**
-- `uv sync --extra enhanced` installieren
-- Mit `--enhanced-normalization` testen
-- Duplikaterkennung vergleichen
+```bash
+# Installation
+uv add jellyfish
 
-### Produktiv: **Je nach Bedarf**
+# Testen
+uv run python src/dublette/app.py --input-file output/partner_test.csv --enhanced-normalization
+
+# Duplikaterkennung vergleichen
+```
+
+### Produktiv: **Je nach Anforderung**
 ```bash
 # Development/Testing
 --enhanced-normalization
 
-# Produktion (Performance wichtig)
+# Produktion (Performance-kritisch)
 # Standard ohne Flag
 
-# Produktion (Qualität wichtig)  
+# Produktion (Qualität-kritisch)  
 --enhanced-normalization
 ```
 
-**Fazit:** Hybride Lösung gibt mir maximale Flexibilität - bewährte Basis + optionale Verbesserungen!
+## Implementierung
+
+### Code-Struktur
+```python
+def normalize_partner_data(df, enhanced_mode=False, ...):
+    # Enhanced mode aktiviert alle Erweiterungen
+    if enhanced_mode:
+        phonetic_names = True
+        fuzzy_cities = True
+        nlp_addresses = True
+    
+    # Check optional dependencies
+    if phonetic_names or fuzzy_cities:
+        try:
+            import jellyfish
+            # Enhanced verfügbar
+        except ImportError:
+            # Graceful fallback
+```
+
+### Hybride Ansatz
+- Basis-Funktionen (ohne Dependencies) als Fundament
+- Enhanced-Funktionen erweitern Basis-Output
+- Automatische Fallback-Mechanismen
+- Keine Breaking Changes
+
+**Fazit:** Hybride Lösung bietet maximale Flexibilität - bewährte Basis + optionale Verbesserungen!

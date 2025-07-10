@@ -28,9 +28,27 @@ def configure_splink(con, multi_table=True, table_name="company_data"):
             "link_type": "link_only",
             "unique_id_column_name": "SATZNR",
             "blocking_rules_to_generate_predictions": [
+                # Einzelne Felder für breite Abdeckung
                 brl.block_on("NAME"),
                 brl.block_on("POSTLEITZAHL"),
                 brl.block_on("ORT"),
+                
+                # Kombinationen für präzisere Matches
+                brl.And(
+                    brl.block_on("NAME", salting_partitions=2),
+                    brl.block_on("VORNAME", salting_partitions=2)
+                ),
+                brl.And(
+                    brl.block_on("NAME", salting_partitions=2), 
+                    brl.block_on("GEBURTSDATUM", salting_partitions=2)
+                ),
+                brl.And(
+                    brl.block_on("POSTLEITZAHL", salting_partitions=2),
+                    brl.block_on("ORT", salting_partitions=2)
+                ),
+                
+                # Soundex für phonetisch ähnliche Namen (falls verfügbar)
+                # "soundex(l.NAME) = soundex(r.NAME)", # Entfernt - DuckDB unterstützt Soundex nicht
             ],
             "comparisons": [
                 cl.LevenshteinAtThresholds("VORNAME", [2, 4]),
@@ -55,9 +73,27 @@ def configure_splink(con, multi_table=True, table_name="company_data"):
             "link_type": "dedupe_only",
             "unique_id_column_name": "SATZNR",
             "blocking_rules_to_generate_predictions": [
+                # Einzelne Felder für breite Abdeckung
                 brl.block_on("NAME"),
                 brl.block_on("POSTLEITZAHL"),
                 brl.block_on("ORT"),
+                
+                # Kombinationen für präzisere Matches
+                brl.And(
+                    brl.block_on("NAME", salting_partitions=2),
+                    brl.block_on("VORNAME", salting_partitions=2)
+                ),
+                brl.And(
+                    brl.block_on("NAME", salting_partitions=2), 
+                    brl.block_on("GEBURTSDATUM", salting_partitions=2)
+                ),
+                brl.And(
+                    brl.block_on("POSTLEITZAHL", salting_partitions=2),
+                    brl.block_on("ORT", salting_partitions=2)
+                ),
+                
+                # Soundex für phonetisch ähnliche Namen (falls verfügbar)
+                # "soundex(l.NAME) = soundex(r.NAME)", # Entfernt - DuckDB unterstützt Soundex nicht
             ],
             "comparisons": [
                 cl.LevenshteinAtThresholds("VORNAME", [2, 4]),

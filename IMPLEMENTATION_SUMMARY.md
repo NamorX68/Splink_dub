@@ -1,10 +1,10 @@
-# Splink Duplikaterkennungs-POC - Meine Projektnotizen
+# Splink Duplikaterkennungs-POC - Projektübersicht
 
-## Was ich gebaut habe
+## Projektbeschreibung
 
-Ein **modularer POC für Duplikaterkennung** in Python mit deutschen Daten. Das System kann sowohl **Multi-Table-Linking** (Verknüpfung zwischen verschiedenen Tabellen) als auch **Single-Table-Deduplication** (Duplikate in einer Tabelle finden) machen.
+Ein **modularer POC für Duplikaterkennung** in Python mit deutschen Daten. Das System kann sowohl **Multi-Table-Linking** (Verknüpfung zwischen verschiedenen Tabellen) als auch **Single-Table-Deduplication** (Duplikate in einer Tabelle finden) durchführen.
 
-### Was es kann
+### Features
 - **Flexible Eingaben**: Generierte Testdaten, Multi-Table-Szenarien, eigene CSV-Dateien
 - **Deutsche Datenstruktur**: Arbeitet mit deutschen Spaltennamen (SATZNR, PARTNERTYP, NAME, etc.)
 - **Automatische Modusauswahl**: Erkennt selbst ob Single-File oder Multi-Table
@@ -24,7 +24,7 @@ Ein **modularer POC für Duplikaterkennung** in Python mit deutschen Daten. Das 
 - **matplotlib**: Visualisierung
 - **faker**: Testdaten generieren
 
-## Meine Projektstruktur
+## Projektstruktur
 
 ### Module
 ```
@@ -53,7 +53,7 @@ src/dublette/
 - **ORT**: Stadt
 - **ADRESSZEILE**: Adresse
 
-## Wie ich es verwende
+## Verwendung
 
 ### 1. Multi-Table-Linking
 Verknüpfung zwischen zwei Tabellen (`company_a` und `company_b`):
@@ -87,7 +87,7 @@ uv run python src/dublette/app.py --input-file output/partnerdaten.csv
 
 ## Output-Dateien (im output/ Verzeichnis)
 
-### Was generiert wird
+### Generierte Dateien
 - **Testdaten**: `company_a_data.csv`, `company_b_data.csv`, `company_data.csv`
 - **Predictions**: `predictions.csv` (Match-Wahrscheinlichkeiten)
 - **Target Table**: `target_table.csv` (deduplizierte Ergebnisse)
@@ -105,7 +105,7 @@ uv run python src/dublette/app.py --input-file output/partnerdaten.csv
 - `--input-file PATH`: Eigene CSV-Datei verwenden
 - `--help`: Alle Optionen anzeigen
 
-### Meine häufigsten Workflows
+### Häufige Workflows
 ```bash
 # Standard: Single-Table mit neuen Testdaten
 uv run python src/dublette/app.py --generate-test-data
@@ -140,7 +140,7 @@ uv run python src/dublette/app.py --help
 - **pyproject.toml**: Projekt-Config
 - **CLI Entry Point**: `dublette = "dublette.app:main"`
 
-## Was besonders ist
+## Besondere Features
 
 ### Intelligente Verarbeitung
 - **Automatische Modusauswahl**: Erkennt selbst ob Single- oder Multi-Table
@@ -157,7 +157,7 @@ uv run python src/dublette/app.py --help
 - **Testdaten**: Deutsche Namen, Orte und Adressen
 - **Dokumentation**: Deutsche Begriffe
 
-## Wofür ich es verwende
+## Anwendungsgebiete
 
 - **Datenbereinigung**: Duplikate in Kundendatenbanken entfernen
 - **Data Matching**: Datensätze aus verschiedenen Quellen verknüpfen
@@ -165,4 +165,4 @@ uv run python src/dublette/app.py --help
 - **Compliance**: DSGVO-konforme Datenkonsolidierung
 - **Prototyping**: Schnelle POCs für Record Linkage
 
-**Das ist mein Splink-POC - modular, deutsch und ready-to-use!**
+**Modularer Splink-POC mit deutscher Lokalisierung - ready-to-use!**

@@ -28,14 +28,46 @@ def setup_duckdb(generate_test_data=False, multi_table=True, input_file=None):
     # Handle custom input file
     if input_file:
         click.echo(f"Loading custom input file: {input_file}")
-        # Load the custom file - assuming semicolon separator based on the sample
-        con.execute(f"""
-            CREATE TABLE partnerdaten_raw AS 
-            SELECT * FROM read_csv_auto('{input_file}', 
-                                       delim=';',
-                                       quote='"',
-                                       header=true)
-        """)
+
+        # First, let's check what the actual delimiter is
+        try:
+            # Try to read the first few lines to determine the format
+            with open(input_file, "r", encoding="utf-8") as f:
+                first_line = f.readline().strip()
+                click.echo(f"First line: {first_line}")
+
+                # Determine delimiter based on content
+                if ";" in first_line and first_line.count(";") > first_line.count(","):
+                    delimiter = ";"
+                    click.echo("Using semicolon (;) as delimiter")
+                else:
+                    delimiter = ","
+                    click.echo("Using comma (,) as delimiter")
+
+            # Load the custom file with detected delimiter
+            con.execute(f"""
+                CREATE TABLE partnerdaten_raw AS 
+                SELECT * FROM read_csv_auto('{input_file}', 
+                                           delim='{delimiter}',
+                                           quote='"',
+                                           header=true)
+            """)
+
+            # Debug: Show the columns that were actually loaded
+            columns_result = con.execute("PRAGMA table_info(partnerdaten_raw)").fetchall()
+            click.echo(f"Loaded columns: {[col[1] for col in columns_result]}")
+
+        except Exception as e:
+            click.echo(f"Error loading file: {e}")
+            # Fallback: try with comma delimiter
+            con.execute(f"""
+                CREATE TABLE partnerdaten_raw AS 
+                SELECT * FROM read_csv_auto('{input_file}', 
+                                           delim=',',
+                                           quote='"',
+                                           header=true)
+            """)
+            click.echo("Used fallback comma delimiter")
 
         # Create view for single-table deduplication
         con.execute("""
@@ -182,13 +214,13 @@ def create_target_table(con, df_predictions, threshold=0.8):
     # Check if we're in single-file mode (company_data exists) or multi-table mode (company_a/company_b exist)
     tables = con.execute("SHOW TABLES").fetchall()
     table_names = [table[0] for table in tables]
-    
-    is_single_file = 'company_data' in table_names and 'company_a' not in table_names
-    
+
+    is_single_file = "company_data" in table_names and "company_a" not in table_names
+
     if is_single_file:
         # Use single-file deduplication logic
         return create_deduplication_target_table(con, df_predictions, threshold)
-    
+
     # Original multi-table logic - simplified without complex matching
     # Just create a combined target table from both sources
 
@@ -323,9 +355,9 @@ def create_deduplication_target_table(con, df_predictions, threshold=0.8):
     # Check if combined_data exists, if not create it from company_data or company_a/company_b
     tables = con.execute("SHOW TABLES").fetchall()
     table_names = [table[0] for table in tables]
-    
-    if 'combined_data' not in table_names:
-        if 'company_data' in table_names:
+
+    if "combined_data" not in table_names:
+        if "company_data" in table_names:
             # Single-file mode: use company_data directly
             con.execute("""
             CREATE TABLE combined_data AS

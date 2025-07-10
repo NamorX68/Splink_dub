@@ -9,7 +9,7 @@ import click
 from dublette.data.generation import generate_test_data, normalize_existing_test_data, normalize_csv_file
 from dublette.database.connection import setup_duckdb, create_target_table
 from dublette.detection.splink_config import configure_splink, detect_duplicates
-from dublette.evaluation.metrics import evaluate_model, plot_match_probability_distribution
+from dublette.evaluation.metrics import evaluate_model, plot_match_probability_distribution, create_comprehensive_evaluation_plots
 
 
 @click.command()
@@ -125,12 +125,37 @@ def main(multi_table, generate_data, table_name, input_file, normalize_data, enh
     click.echo("\nEvaluating model...")
     metrics = evaluate_model(df_predictions)
 
-    click.echo("\nModel evaluation metrics:")
-    for key, value in metrics.items():
-        click.echo(f"  {key}: {value}")
+    click.echo("\n=== COMPREHENSIVE MODEL EVALUATION ===")
 
-    click.echo("\nPlotting match probability distribution...")
+    # Zeige Basis-Statistiken
+    basic_stats = metrics["basic_stats"]
+    prob_stats = metrics["probability_stats"]
+    quality_indicators = metrics["quality_indicators"]
+
+    click.echo(f"📊 Total comparisons: {basic_stats['total_comparisons']:,}")
+    click.echo(f"✅ Predicted matches: {basic_stats['predicted_matches']:,}")
+    click.echo(f"📈 Match rate: {basic_stats['match_rate']:.1%}")
+    click.echo(f"🎯 Average match probability: {prob_stats['mean_probability']:.3f}")
+    click.echo(f"🔥 High confidence matches: {quality_indicators['confidence_ratio']:.1%}")
+    click.echo(f"❓ Uncertain cases: {quality_indicators['uncertainty_ratio']:.1%}")
+
+    # Zeige Erklärungen
+    click.echo("\n=== 📝 INTERPRETATION ===")
+    explanations = metrics["explanations"]
+    for explanation in explanations.values():
+        click.echo(f"• {explanation}")
+
+    click.echo("\n=== 📊 CREATING COMPREHENSIVE VISUALIZATIONS ===")
+    create_comprehensive_evaluation_plots(df_predictions, metrics)
+
+    # Erstelle auch den Standard-Plot für Kompatibilität
     plot_match_probability_distribution(df_predictions)
+
+    click.echo("✅ Evaluation plots saved to output/ directory:")
+    click.echo("   📈 comprehensive_evaluation_analysis.png (6 detailed analysis plots)")
+    click.echo("   🎯 detailed_threshold_analysis.png (threshold sensitivity analysis)")
+    click.echo("   🔥 match_quality_heatmap.png (quality analysis heatmaps)")
+    click.echo("   📊 match_probability_distribution.png (standard distribution plot)")
 
     click.echo("\nSaving results...")
     df_predictions.to_csv("output/predictions.csv", index=False)
