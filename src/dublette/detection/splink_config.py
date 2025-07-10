@@ -32,21 +32,10 @@ def configure_splink(con, multi_table=True, table_name="company_data"):
                 brl.block_on("NAME"),
                 brl.block_on("POSTLEITZAHL"),
                 brl.block_on("ORT"),
-                
                 # Kombinationen für präzisere Matches
-                brl.And(
-                    brl.block_on("NAME", salting_partitions=2),
-                    brl.block_on("VORNAME", salting_partitions=2)
-                ),
-                brl.And(
-                    brl.block_on("NAME", salting_partitions=2), 
-                    brl.block_on("GEBURTSDATUM", salting_partitions=2)
-                ),
-                brl.And(
-                    brl.block_on("POSTLEITZAHL", salting_partitions=2),
-                    brl.block_on("ORT", salting_partitions=2)
-                ),
-                
+                brl.And(brl.block_on("NAME", salting_partitions=2), brl.block_on("VORNAME", salting_partitions=2)),
+                brl.And(brl.block_on("NAME", salting_partitions=2), brl.block_on("GEBURTSDATUM", salting_partitions=2)),
+                brl.And(brl.block_on("POSTLEITZAHL", salting_partitions=2), brl.block_on("ORT", salting_partitions=2)),
                 # Soundex für phonetisch ähnliche Namen (falls verfügbar)
                 # "soundex(l.NAME) = soundex(r.NAME)", # Entfernt - DuckDB unterstützt Soundex nicht
             ],
@@ -59,8 +48,6 @@ def configure_splink(con, multi_table=True, table_name="company_data"):
                 cl.ExactMatch("POSTLEITZAHL"),
                 cl.LevenshteinAtThresholds("ORT", [2]),
                 cl.LevenshteinAtThresholds("ADRESSZEILE", [3, 6]),
-                cl.ExactMatch("PARTNERTYP"),
-                cl.ExactMatch("GEMEINDESCHLUESSEL"),
             ],
             "retain_intermediate_calculation_columns": True,
             "em_convergence": 0.001,
@@ -77,21 +64,10 @@ def configure_splink(con, multi_table=True, table_name="company_data"):
                 brl.block_on("NAME"),
                 brl.block_on("POSTLEITZAHL"),
                 brl.block_on("ORT"),
-                
                 # Kombinationen für präzisere Matches
-                brl.And(
-                    brl.block_on("NAME", salting_partitions=2),
-                    brl.block_on("VORNAME", salting_partitions=2)
-                ),
-                brl.And(
-                    brl.block_on("NAME", salting_partitions=2), 
-                    brl.block_on("GEBURTSDATUM", salting_partitions=2)
-                ),
-                brl.And(
-                    brl.block_on("POSTLEITZAHL", salting_partitions=2),
-                    brl.block_on("ORT", salting_partitions=2)
-                ),
-                
+                brl.And(brl.block_on("NAME", salting_partitions=2), brl.block_on("VORNAME", salting_partitions=2)),
+                brl.And(brl.block_on("NAME", salting_partitions=2), brl.block_on("GEBURTSDATUM", salting_partitions=2)),
+                brl.And(brl.block_on("POSTLEITZAHL", salting_partitions=2), brl.block_on("ORT", salting_partitions=2)),
                 # Soundex für phonetisch ähnliche Namen (falls verfügbar)
                 # "soundex(l.NAME) = soundex(r.NAME)", # Entfernt - DuckDB unterstützt Soundex nicht
             ],
@@ -104,8 +80,6 @@ def configure_splink(con, multi_table=True, table_name="company_data"):
                 cl.ExactMatch("POSTLEITZAHL"),
                 cl.LevenshteinAtThresholds("ORT", [2]),
                 cl.LevenshteinAtThresholds("ADRESSZEILE", [3, 6]),
-                cl.ExactMatch("PARTNERTYP"),
-                cl.ExactMatch("GEMEINDESCHLUESSEL"),
             ],
             "retain_intermediate_calculation_columns": True,
             "em_convergence": 0.001,
@@ -131,7 +105,7 @@ def detect_duplicates(linker):
         pd.DataFrame: DataFrame with duplicate pairs and match probability
     """
     # Train the model using v4.x API
-    linker.training.estimate_u_using_random_sampling(max_pairs=1000000)
+    linker.training.estimate_u_using_random_sampling(max_pairs=10000000)
 
     # EM training requires a blocking rule in v4.x
     blocking_rule = brl.block_on("NAME")

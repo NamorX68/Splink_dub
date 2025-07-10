@@ -6,7 +6,7 @@ Ein **modularer POC für Duplikaterkennung** in Python mit deutschen Daten. Das 
 
 ### Features
 - **Flexible Eingaben**: Generierte Testdaten, Multi-Table-Szenarien, eigene CSV-Dateien
-- **Deutsche Datenstruktur**: Arbeitet mit deutschen Spaltennamen (SATZNR, PARTNERTYP, NAME, etc.)
+- **Deutsche Datenstruktur**: Arbeitet mit deutschen Spaltennamen (SATZNR, NAME, etc.)
 - **Automatische Modusauswahl**: Erkennt selbst ob Single-File oder Multi-Table
 - **Komplette Pipeline**: Von Datengenerierung bis Evaluation
 
@@ -42,14 +42,12 @@ src/dublette/
 
 ### Datenmodell (Deutsche Spaltennamen)
 - **SATZNR**: Eindeutige ID
-- **PARTNERTYP**: Person/Unternehmen
 - **NAME**: Nachname/Firmenname
 - **VORNAME**: Vorname
 - **GEBURTSDATUM**: Geburtsdatum
 - **GESCHLECHT**: Geschlecht
 - **LAND**: Land
 - **POSTLEITZAHL**: PLZ
-- **GEMEINDESCHLUESSEL**: Gemeindeschlüssel
 - **ORT**: Stadt
 - **ADRESSZEILE**: Adresse
 

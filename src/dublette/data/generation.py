@@ -28,14 +28,12 @@ def generate_test_data(multi_table=True, apply_normalization=True, enhanced_norm
 
     The data is saved to CSV files and includes the following fields:
     - SATZNR (Record Number / Unique ID)
-    - PARTNERTYP (Partner Type)
     - NAME (Last Name)
     - VORNAME (First Name)
     - GEBURTSDATUM (Birth Date)
     - GESCHLECHT (Gender)
     - LAND (Country)
     - POSTLEITZAHL (Postal Code)
-    - GEMEINDESCHLUESSEL (Municipality Key)
     - ORT (City)
     - ADRESSZEILE (Address Line)
 
@@ -134,7 +132,6 @@ def generate_test_data(multi_table=True, apply_normalization=True, enhanced_norm
         "Münchener Straße",
         "Berliner Platz",
     ]
-    partner_types = ["P", "K", "L"]  # Person, Kunde, Lieferant
     genders = ["M", "W", "D"]  # Männlich, Weiblich, Divers
     countries = ["DE", "AT", "CH"]  # Deutschland, Österreich, Schweiz
 
@@ -142,7 +139,6 @@ def generate_test_data(multi_table=True, apply_normalization=True, enhanced_norm
     df_a = pd.DataFrame(
         {
             "SATZNR": range(1, n_records - n_duplicates + 1),
-            "PARTNERTYP": np.random.choice(partner_types, n_records - n_duplicates),
             "NAME": np.random.choice(last_names, n_records - n_duplicates),
             "VORNAME": np.random.choice(first_names, n_records - n_duplicates),
             "GEBURTSDATUM": [
@@ -152,7 +148,6 @@ def generate_test_data(multi_table=True, apply_normalization=True, enhanced_norm
             "GESCHLECHT": np.random.choice(genders, n_records - n_duplicates),
             "LAND": np.random.choice(countries, n_records - n_duplicates),
             "POSTLEITZAHL": [f"{random.randint(10000, 99999):05d}" for _ in range(n_records - n_duplicates)],
-            "GEMEINDESCHLUESSEL": [f"{random.randint(1000, 9999):04d}" for _ in range(n_records - n_duplicates)],
             "ORT": np.random.choice(cities, n_records - n_duplicates),
             "ADRESSZEILE": [f"{random.choice(streets)} {random.randint(1, 150)}" for _ in range(n_records - n_duplicates)],
         }
@@ -162,7 +157,6 @@ def generate_test_data(multi_table=True, apply_normalization=True, enhanced_norm
     df_b = pd.DataFrame(
         {
             "SATZNR": range(n_records - n_duplicates + 1, n_records + 1),
-            "PARTNERTYP": np.random.choice(partner_types, n_duplicates),
             "NAME": np.random.choice(last_names, n_duplicates),
             "VORNAME": np.random.choice(first_names, n_duplicates),
             "GEBURTSDATUM": [
@@ -171,7 +165,6 @@ def generate_test_data(multi_table=True, apply_normalization=True, enhanced_norm
             "GESCHLECHT": np.random.choice(genders, n_duplicates),
             "LAND": np.random.choice(countries, n_duplicates),
             "POSTLEITZAHL": [f"{random.randint(10000, 99999):05d}" for _ in range(n_duplicates)],
-            "GEMEINDESCHLUESSEL": [f"{random.randint(1000, 9999):04d}" for _ in range(n_duplicates)],
             "ORT": np.random.choice(cities, n_duplicates),
             "ADRESSZEILE": [f"{random.choice(streets)} {random.randint(1, 150)}" for _ in range(n_duplicates)],
         }
@@ -188,20 +181,18 @@ def generate_test_data(multi_table=True, apply_normalization=True, enhanced_norm
         # Create a duplicate with variations for company B
         duplicate_b = {
             "SATZNR": n_records + i + 1,
-            "PARTNERTYP": record_a["PARTNERTYP"],
             "NAME": record_a["NAME"],
             "VORNAME": record_a["VORNAME"],
             "GEBURTSDATUM": record_a["GEBURTSDATUM"],
             "GESCHLECHT": record_a["GESCHLECHT"],
             "LAND": record_a["LAND"],
             "POSTLEITZAHL": record_a["POSTLEITZAHL"],
-            "GEMEINDESCHLUESSEL": record_a["GEMEINDESCHLUESSEL"],
             "ORT": record_a["ORT"],
             "ADRESSZEILE": record_a["ADRESSZEILE"],
         }
 
         # Apply random variations to simulate real-world data issues
-        variation_type = random.randint(0, 6)
+        variation_type = random.randint(0, 5)  # Changed from 6 to 5 since we removed PARTNERTYP variation
 
         if variation_type == 0:
             # Typo in first name
@@ -245,9 +236,7 @@ def generate_test_data(multi_table=True, apply_normalization=True, enhanced_norm
             # Different country (for cross-border data)
             duplicate_b["LAND"] = random.choice(["AT", "CH"]) if duplicate_b["LAND"] == "DE" else "DE"
 
-        elif variation_type == 6:
-            # Different partner type
-            duplicate_b["PARTNERTYP"] = random.choice([pt for pt in partner_types if pt != duplicate_b["PARTNERTYP"]])
+        # Note: variation_type == 6 (Different partner type) removed since PARTNERTYP field was removed
 
         duplicates_b.append(duplicate_b)
 

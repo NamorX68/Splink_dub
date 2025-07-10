@@ -74,14 +74,12 @@ def setup_duckdb(generate_test_data=False, multi_table=True, input_file=None):
         CREATE VIEW company_data AS 
         SELECT 
             SATZNR,
-            PARTNERTYP,
             NAME,
             VORNAME,
             GEBURTSDATUM,
             GESCHLECHT,
             LAND,
             POSTLEITZAHL,
-            GEMEINDESCHLUESSEL,
             ORT,
             ADRESSZEILE
         FROM partnerdaten_raw
@@ -118,14 +116,12 @@ def setup_duckdb(generate_test_data=False, multi_table=True, input_file=None):
     CREATE VIEW company_a AS 
     SELECT 
         SATZNR,
-        PARTNERTYP,
         NAME,
         VORNAME,
         GEBURTSDATUM,
         GESCHLECHT,
         LAND,
         POSTLEITZAHL,
-        GEMEINDESCHLUESSEL,
         ORT,
         ADRESSZEILE
     FROM company_a_raw
@@ -137,14 +133,12 @@ def setup_duckdb(generate_test_data=False, multi_table=True, input_file=None):
         CREATE VIEW company_b AS 
         SELECT 
             SATZNR,
-            PARTNERTYP,
             NAME,
             VORNAME,
             GEBURTSDATUM,
             GESCHLECHT,
             LAND,
             POSTLEITZAHL,
-            GEMEINDESCHLUESSEL,
             ORT,
             ADRESSZEILE
         FROM company_b_raw
@@ -173,14 +167,12 @@ def setup_duckdb(generate_test_data=False, multi_table=True, input_file=None):
             CREATE VIEW company_b AS 
             SELECT 
                 SATZNR,
-                PARTNERTYP,
                 NAME,
                 VORNAME,
                 GEBURTSDATUM,
                 GESCHLECHT,
                 LAND,
                 POSTLEITZAHL,
-                GEMEINDESCHLUESSEL,
                 ORT,
                 ADRESSZEILE
             FROM company_b_raw
@@ -230,14 +222,12 @@ def create_target_table(con, df_predictions, threshold=0.8):
     SELECT 
         CAST(SATZNR AS VARCHAR) AS unique_id,
         SATZNR,
-        PARTNERTYP,
         NAME,
         VORNAME,
         GEBURTSDATUM,
         GESCHLECHT,
         LAND,
         POSTLEITZAHL,
-        GEMEINDESCHLUESSEL,
         ORT,
         ADRESSZEILE,
         'company_a' AS source
@@ -248,14 +238,12 @@ def create_target_table(con, df_predictions, threshold=0.8):
     SELECT 
         CAST(SATZNR AS VARCHAR) AS unique_id,
         SATZNR,
-        PARTNERTYP,
         NAME,
         VORNAME,
         GEBURTSDATUM,
         GESCHLECHT,
         LAND,
         POSTLEITZAHL,
-        GEMEINDESCHLUESSEL,
         ORT,
         ADRESSZEILE,
         'company_b' AS source
@@ -266,14 +254,12 @@ def create_target_table(con, df_predictions, threshold=0.8):
     CREATE TABLE target_table AS
     SELECT 
         SATZNR,
-        PARTNERTYP,
         NAME,
         VORNAME,
         GEBURTSDATUM,
         GESCHLECHT,
         LAND,
         POSTLEITZAHL,
-        GEMEINDESCHLUESSEL,
         ORT,
         ADRESSZEILE,
         source
@@ -301,14 +287,12 @@ def create_combined_table_for_deduplication(con):
     CREATE TABLE combined_data AS
     SELECT 
         SATZNR,
-        PARTNERTYP,
         NAME,
         VORNAME,
         GEBURTSDATUM,
         GESCHLECHT,
         LAND,
         POSTLEITZAHL,
-        GEMEINDESCHLUESSEL,
         ORT,
         ADRESSZEILE,
         'company_a' AS source
@@ -318,14 +302,12 @@ def create_combined_table_for_deduplication(con):
 
     SELECT 
         SATZNR,
-        PARTNERTYP,
         NAME,
         VORNAME,
         GEBURTSDATUM,
         GESCHLECHT,
         LAND,
         POSTLEITZAHL,
-        GEMEINDESCHLUESSEL,
         ORT,
         ADRESSZEILE,
         'company_b' AS source
@@ -335,7 +317,7 @@ def create_combined_table_for_deduplication(con):
     print("Created combined table for deduplication")
 
 
-def create_deduplication_target_table(con, df_predictions, threshold=0.8):
+def create_deduplication_target_table(con, df_predictions, threshold=0.75):
     """
     Create a deduplicated target table from deduplication results.
     Groups duplicates and keeps the most recent record from each group.
@@ -363,14 +345,12 @@ def create_deduplication_target_table(con, df_predictions, threshold=0.8):
             CREATE TABLE combined_data AS
             SELECT 
                 SATZNR,
-                PARTNERTYP,
                 NAME,
                 VORNAME,
                 GEBURTSDATUM,
                 GESCHLECHT,
                 LAND,
                 POSTLEITZAHL,
-                GEMEINDESCHLUESSEL,
                 ORT,
                 ADRESSZEILE,
                 'single_file' AS source
@@ -434,14 +414,12 @@ def create_deduplication_target_table(con, df_predictions, threshold=0.8):
     )
     SELECT 
         SATZNR,
-        PARTNERTYP,
         NAME,
         VORNAME,
         GEBURTSDATUM,
         GESCHLECHT,
         LAND,
         POSTLEITZAHL,
-        GEMEINDESCHLUESSEL,
         ORT,
         ADRESSZEILE,
         source,

@@ -14,17 +14,20 @@ import os
 
 def evaluate_model(df_predictions, threshold=0.8):
     """
-    Umfassende Evaluation des Duplikaterkennungs-Modells.
+        Umfassende Evaluation des Duplikaterkennungs-Modells.
 
-    Diese Funktion berechnet detaillierte Statistiken über die Modell-Performance
-    und gibt Einblicke in die Qualität der Duplikaterkennung.
+        Diese Funktion berechnet detaillierte Statistiken über die Modell-Performance
+        und gibt Einblicke in die Qualität der Duplikaterkennung.
 
-    Args:
-        df_predictions (pd.DataFrame): DataFrame mit Duplikatpaaren und Match-Wahrscheinlichkeiten
-        threshold (float): Schwellwert für Match-Wahrscheinlichkeit (Standard: 0.8)
+        Args:
+            df_predictions (pd.DataFrame): DataFrame mit Duplikatpaaren und Match-Wahrscheinlichkeiten
+            threshold (float): Schwel### Modell-Confidence
+    - **Confidence Ratio:** {metrics['quality_indicators']['confidence_ratio']:.1%}
+    - **Unsicherheits-Ratio:** {metrics['quality_indicators']['uncertainty_ratio']:.1%}
+    - **Separation Quality:** {metrics['quality_indicators']['separation_quality']['quality'].title()}t für Match-Wahrscheinlichkeit (Standard: 0.8)
 
-    Returns:
-        dict: Dictionary mit umfassenden Evaluationsmetriken und Erklärungen
+        Returns:
+            dict: Dictionary mit umfassenden Evaluationsmetriken und Erklärungen
     """
     # Grundlegende Statistiken
     matches = df_predictions[df_predictions["match_probability"] >= threshold]
@@ -657,3 +660,341 @@ def plot_match_probability_distribution(df_predictions):
     plot_path = os.path.join(output_dir, "match_probability_distribution.png")
     plt.savefig(plot_path)
     plt.close()
+
+
+def generate_evaluation_report(
+    df_predictions, threshold=0.8, output_dir="output", enhanced_normalization=False, multi_table=False
+):
+    """
+    Generiert einen umfassenden Evaluationsbericht als Markdown-Datei.
+
+    Args:
+        df_predictions (pd.DataFrame): DataFrame mit Duplikatpaaren und Match-Wahrscheinlichkeiten
+        threshold (float): Schwellwert für Match-Wahrscheinlichkeit
+        output_dir (str): Verzeichnis für die Ausgabedateien
+        enhanced_normalization (bool): Ob Enhanced Normalization verwendet wurde
+        multi_table (bool): Ob Multi-Table-Modus verwendet wurde
+
+    Returns:
+        str: Pfad zur generierten Markdown-Datei
+    """
+    from datetime import datetime
+    import os
+
+    # Vollständige Evaluation durchführen
+    metrics = evaluate_model(df_predictions, threshold)
+
+    # Markdown-Inhalt erstellen
+    md_content = f"""# Duplikaterkennung - Evaluationsbericht
+
+*Generiert am: {datetime.now().strftime("%d.%m.%Y um %H:%M:%S")}*
+
+## Konfiguration
+
+- **Threshold:** {threshold}
+- **Modus:** {"Multi-Table-Linking" if multi_table else "Single-Table-Deduplication"}
+- **Normalisierung:** {"Enhanced (mit jellyfish)" if enhanced_normalization else "Standard"}
+- **Vergleiche gesamt:** {metrics["basic_stats"]["total_comparisons"]:,}
+
+## 📊 Kernergebnisse
+
+### Match-Statistiken
+- **Erkannte Duplikate:** {metrics["basic_stats"]["predicted_matches"]:,} ({metrics["basic_stats"]["match_rate"]:.1%})
+- **Nicht-Duplikate:** {metrics["basic_stats"]["predicted_non_matches"]:,}
+- **Durchschnittliche Wahrscheinlichkeit:** {metrics["probability_stats"]["mean_probability"]:.3f}
+- **Median Wahrscheinlichkeit:** {metrics["probability_stats"]["median_probability"]:.3f}
+
+### Wahrscheinlichkeits-Verteilung
+- **Sehr niedrig (< 10%):** {metrics["distribution_analysis"]["probability_ranges"]["very_low_prob"]:.1%}
+- **Niedrig (10-30%):** {metrics["distribution_analysis"]["probability_ranges"]["low_prob"]:.1%}
+- **Mittel (30-70%):** {metrics["distribution_analysis"]["probability_ranges"]["medium_prob"]:.1%}
+- **Hoch (70-90%):** {metrics["distribution_analysis"]["probability_ranges"]["high_prob"]:.1%}
+- **Sehr hoch (≥ 90%):** {metrics["distribution_analysis"]["probability_ranges"]["very_high_prob"]:.1%}
+
+## 🎯 Qualitäts-Indikatoren
+
+### Modell-Confidence
+- **Confidence Ratio:** {metrics["quality_indicators"]["confidence_ratio"]:.1%}
+- **Unsicherheits-Ratio:** {metrics["quality_indicators"]["uncertainty_ratio"]:.1%}
+- **Separation Quality:** {metrics["quality_indicators"]["separation_quality"]}
+
+### Quantile-Analyse
+- **90. Perzentil:** {metrics["distribution_analysis"]["quantiles"]["90th_percentile"]:.3f}
+- **95. Perzentil:** {metrics["distribution_analysis"]["quantiles"]["95th_percentile"]:.3f}
+- **99. Perzentil:** {metrics["distribution_analysis"]["quantiles"]["99th_percentile"]:.3f}
+
+## 📈 Visualisierungen
+
+Die folgenden Grafiken wurden generiert und im `output/` Verzeichnis gespeichert:
+
+### 1. Comprehensive Evaluation Analysis
+![Comprehensive Analysis](comprehensive_evaluation_analysis.png)
+
+**Interpretation:**
+- **Probability Distribution:** Zeigt die Verteilung der Match-Wahrscheinlichkeiten
+- **Threshold Sensitivity:** Wie sich verschiedene Schwellwerte auswirken
+- **Confidence Levels:** Verteilung der Modell-Zuversicht
+- **Probability Ranges:** Anteil der verschiedenen Wahrscheinlichkeitsbereiche
+- **Cumulative Distribution:** Kumulative Verteilung für Perzentil-Analyse
+- **Quality Summary:** Textbasierte Zusammenfassung der Qualitäts-Metriken
+
+### 2. Detailed Threshold Analysis
+![Threshold Analysis](detailed_threshold_analysis.png)
+
+**Interpretation:**
+- **Match Count vs Threshold:** Wie viele Matches bei verschiedenen Schwellwerten
+- **Match Rate vs Threshold:** Prozentuale Match-Rate über Schwellwerte
+- **Average Probabilities:** Durchschnittliche Wahrscheinlichkeiten für Matches/Non-Matches
+- **Separation Quality:** Wie gut das Modell zwischen Duplikaten und Nicht-Duplikaten trennt
+
+### 3. Match Quality Heatmap
+![Quality Heatmap](match_quality_heatmap.png)
+
+**Interpretation:**
+- **Probability vs Confidence:** Zusammenhang zwischen Wahrscheinlichkeit und Modell-Zuversicht
+- **Threshold vs Quality:** Qualitäts-Metriken über verschiedene Schwellwerte
+
+### 4. Standard Probability Distribution
+![Probability Distribution](match_probability_distribution.png)
+
+**Interpretation:**
+- Klassische Wahrscheinlichkeitsverteilung mit Schwellwert-Markierung
+- Zeigt die Trennung zwischen Matches und Non-Matches
+
+## 🔍 Detaillierte Interpretation
+
+### Modell-Performance
+{generate_performance_interpretation(metrics)}
+
+### Threshold-Empfehlung
+{generate_threshold_recommendation(metrics, threshold)}
+
+### Datenqualität
+{generate_data_quality_assessment(metrics)}
+
+## 💡 Verbesserungsvorschläge
+
+### Sofortige Maßnahmen
+{generate_immediate_improvements(metrics, enhanced_normalization)}
+
+### Langfristige Optimierungen
+{generate_long_term_improvements(metrics)}
+
+### Technische Empfehlungen
+{generate_technical_recommendations(metrics, multi_table)}
+
+## 📋 Zusammenfassung
+
+**Gesamtbewertung:** {get_overall_assessment(metrics)}
+
+**Nächste Schritte:**
+1. {get_next_steps(metrics)[0]}
+2. {get_next_steps(metrics)[1]}
+3. {get_next_steps(metrics)[2]}
+
+---
+
+*Dieser Bericht wurde automatisch generiert vom Splink Duplikaterkennungs-POC.*
+*Weitere Details finden Sie in den Visualisierungen und der technischen Dokumentation.*
+"""
+
+    # Markdown-Datei speichern
+    report_filename = "evaluation_report.md"
+    report_path = os.path.join(output_dir, report_filename)
+
+    with open(report_path, "w", encoding="utf-8") as f:
+        f.write(md_content)
+
+    print(f"📄 Evaluationsbericht gespeichert: {report_path}")
+    return report_path
+
+
+def generate_performance_interpretation(metrics):
+    """Generiert eine Interpretation der Modell-Performance."""
+    match_rate = metrics["basic_stats"]["match_rate"]
+    confidence_ratio = metrics["quality_indicators"]["confidence_ratio"]
+    separation_quality = metrics["quality_indicators"]["separation_quality"]
+
+    interpretation = []
+
+    if match_rate > 0.15:
+        interpretation.append(
+            "**Hohe Match-Rate:** Das Modell findet viele potenzielle Duplikate. Dies kann auf eine datenreiche Umgebung oder niedrige Schwellwerte hindeuten."
+        )
+    elif match_rate > 0.05:
+        interpretation.append(
+            "**Moderate Match-Rate:** Ausgewogene Duplikaterkennung. Das Modell ist selektiv aber nicht zu restriktiv."
+        )
+    else:
+        interpretation.append(
+            "**Niedrige Match-Rate:** Sehr konservative Duplikaterkennung. Möglicherweise werden echte Duplikate übersehen."
+        )
+
+    if confidence_ratio > 0.7:
+        interpretation.append(
+            "**Hohe Modell-Zuversicht:** Das Modell ist bei den meisten Entscheidungen sehr sicher. Exzellente Qualität."
+        )
+    elif confidence_ratio > 0.5:
+        interpretation.append(
+            "**Moderate Modell-Zuversicht:** Das Modell zeigt bei über der Hälfte der Fälle hohe Zuversicht. Gute Qualität."
+        )
+    else:
+        interpretation.append(
+            "**Niedrige Modell-Zuversicht:** Das Modell ist unsicher bei vielen Entscheidungen. Überprüfung der Datenqualität empfohlen."
+        )
+
+    separation_quality = metrics["quality_indicators"]["separation_quality"]
+
+    if separation_quality["quality"] == "excellent":
+        interpretation.append("**Excellente Trennung:** Das Modell trennt sehr gut zwischen Duplikaten und Nicht-Duplikaten.")
+    elif separation_quality["quality"] == "good":
+        interpretation.append("**Gute Trennung:** Das Modell trennt gut zwischen Duplikaten und Nicht-Duplikaten.")
+    else:
+        interpretation.append(
+            "**Schwache Trennung:** Das Modell hat Schwierigkeiten, zwischen Duplikaten und Nicht-Duplikaten zu unterscheiden."
+        )
+
+    return "\n".join(interpretation)
+
+
+def generate_threshold_recommendation(metrics, current_threshold):
+    """Generiert Empfehlungen für den optimalen Schwellwert."""
+    match_rate = metrics["basic_stats"]["match_rate"]
+    confidence_ratio = metrics["quality_indicators"]["confidence_ratio"]
+
+    recommendations = []
+
+    if match_rate > 0.2 and confidence_ratio < 0.6:
+        recommendations.append(
+            f"**Schwellwert erhöhen:** Aktueller Threshold ({current_threshold}) ist möglicherweise zu niedrig. Empfehlung: 0.85-0.9"
+        )
+    elif match_rate < 0.02 and confidence_ratio > 0.8:
+        recommendations.append(
+            f"**Schwellwert senken:** Aktueller Threshold ({current_threshold}) ist möglicherweise zu hoch. Empfehlung: 0.7-0.75"
+        )
+    else:
+        recommendations.append(
+            f"**Threshold beibehalten:** Aktueller Threshold ({current_threshold}) scheint angemessen zu sein."
+        )
+
+    recommendations.append(
+        "**Schwellwert-Optimierung:** Verwenden Sie die Threshold Sensitivity Analyse, um den optimalen Wert zu finden."
+    )
+
+    return "\n".join(recommendations)
+
+
+def generate_data_quality_assessment(metrics):
+    """Bewertet die Datenqualität basierend auf den Metriken."""
+    uncertainty_ratio = metrics["quality_indicators"]["uncertainty_ratio"]
+    std_probability = metrics["probability_stats"]["std_probability"]
+
+    assessment = []
+
+    if uncertainty_ratio < 0.1:
+        assessment.append("**Sehr gute Datenqualität:** Wenig unsichere Fälle, klare Entscheidungen möglich.")
+    elif uncertainty_ratio < 0.2:
+        assessment.append("**Gute Datenqualität:** Moderate Unsicherheit, überwiegend klare Entscheidungen.")
+    else:
+        assessment.append("**Verbesserungsbedarf:** Hohe Unsicherheit deutet auf Datenqualitätsprobleme hin.")
+
+    if std_probability > 0.3:
+        assessment.append("**Hohe Variabilität:** Große Streuung in den Wahrscheinlichkeiten - diverse Datenqualität.")
+    else:
+        assessment.append("**Konsistente Daten:** Niedrige Streuung deutet auf einheitliche Datenqualität hin.")
+
+    return "\n".join(assessment)
+
+
+def generate_immediate_improvements(metrics, enhanced_normalization):
+    """Generiert sofortige Verbesserungsvorschläge."""
+    improvements = []
+
+    if not enhanced_normalization:
+        improvements.append(
+            "**Enhanced Normalization aktivieren:** Verwenden Sie `--enhanced-normalization` für bessere Ergebnisse."
+        )
+
+    uncertainty_ratio = metrics["quality_indicators"]["uncertainty_ratio"]
+    if uncertainty_ratio > 0.15:
+        improvements.append("**Datenbereinigung:** Hohe Unsicherheit deutet auf inkonsistente Daten hin. Normalisierung prüfen.")
+
+    match_rate = metrics["basic_stats"]["match_rate"]
+    if match_rate > 0.25:
+        improvements.append("**Threshold anpassen:** Sehr hohe Match-Rate - Schwellwert möglicherweise zu niedrig.")
+
+    improvements.append("**Manuelle Validierung:** Stichprobenweise Überprüfung der erkannten Duplikate.")
+
+    return "\n".join(improvements)
+
+
+def generate_long_term_improvements(metrics):
+    """Generiert langfristige Optimierungsvorschläge."""
+    improvements = [
+        "**Blocking Rules optimieren:** Experimentieren Sie mit zusätzlichen Blocking-Kombinationen.",
+        "**Feature Engineering:** Zusätzliche Ähnlichkeits-Features für bessere Diskriminierung.",
+        "**Training Data:** Sammeln Sie gelabelte Daten für supervised Learning Ansätze.",
+        "**A/B Testing:** Testen Sie verschiedene Konfigurationen systematisch.",
+        "**Monitoring:** Implementieren Sie kontinuierliches Monitoring der Modell-Performance.",
+    ]
+
+    return "\n".join(improvements)
+
+
+def generate_technical_recommendations(metrics, multi_table):
+    """Generiert technische Empfehlungen."""
+    recommendations = []
+
+    if multi_table:
+        recommendations.append("**Multi-Table-Optimierung:** Prüfen Sie die Balance zwischen den Tabellen.")
+    else:
+        recommendations.append("**Single-Table-Deduplication:** Berücksichtigen Sie transitivity für bessere Gruppierung.")
+
+    recommendations.extend(
+        [
+            "**Performance-Tuning:** Optimieren Sie Blocking Rules für bessere Laufzeit.",
+            "**Speicher-Optimierung:** Verwenden Sie Sampling für sehr große Datensätze.",
+            "**Parallelisierung:** Nutzen Sie Multi-Processing für große Datenmengen.",
+        ]
+    )
+
+    return "\n".join(recommendations)
+
+
+def get_overall_assessment(metrics):
+    """Gibt eine Gesamtbewertung zurück."""
+    confidence_ratio = metrics["quality_indicators"]["confidence_ratio"]
+    separation_quality = metrics["quality_indicators"]["separation_quality"]
+    uncertainty_ratio = metrics["quality_indicators"]["uncertainty_ratio"]
+
+    if confidence_ratio > 0.7 and separation_quality["quality"] == "excellent" and uncertainty_ratio < 0.1:
+        return "**Exzellent** - Modell zeigt hervorragende Performance mit hoher Zuversicht und klarer Trennung."
+    elif confidence_ratio > 0.5 and separation_quality["quality"] in ["good", "excellent"] and uncertainty_ratio < 0.2:
+        return "**Gut** - Modell funktioniert zuverlässig mit akzeptabler Qualität."
+    elif confidence_ratio > 0.3 and uncertainty_ratio < 0.3:
+        return "**Akzeptabel** - Modell funktioniert grundsätzlich, aber Optimierungspotential vorhanden."
+    else:
+        return "**Verbesserungsbedarf** - Modell benötigt Optimierung für produktiven Einsatz."
+
+
+def get_next_steps(metrics):
+    """Gibt konkrete nächste Schritte zurück."""
+    confidence_ratio = metrics["quality_indicators"]["confidence_ratio"]
+    match_rate = metrics["basic_stats"]["match_rate"]
+
+    steps = []
+
+    if confidence_ratio < 0.5:
+        steps.append("Datenqualität verbessern und Enhanced Normalization aktivieren")
+
+    if match_rate > 0.2:
+        steps.append("Schwellwert anpassen und Threshold Sensitivity analysieren")
+
+    if len(steps) == 0:
+        steps.append("Manuelle Validierung einer Stichprobe durchführen")
+
+    # Füge immer diese Schritte hinzu
+    steps.append("Blocking Rules für bessere Performance optimieren")
+    steps.append("Kontinuierliches Monitoring der Modell-Performance implementieren")
+
+    return steps[:3]  # Maximal 3 Schritte

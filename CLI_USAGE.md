@@ -122,14 +122,12 @@ uv run python src/dublette/app.py --help
 Die Anwendung arbeitet mit folgenden **deutschen Standardfeldern**:
 
 - `SATZNR`: Eindeutige Satz-ID  
-- `PARTNERTYP`: Partner-Typ
 - `NAME`: Nachname
 - `VORNAME`: Vorname
 - `GEBURTSDATUM`: Geburtsdatum (YYYY-MM-DD)
 - `GESCHLECHT`: Geschlecht (M/W)
 - `LAND`: Ländercode (z.B. D)
 - `POSTLEITZAHL`: Deutsche Postleitzahl
-- `GEMEINDESCHLUESSEL`: Amtlicher Gemeindeschlüssel
 - `ORT`: Ortschaft/Stadt
 - `ADRESSZEILE`: Vollständige Adresse
 

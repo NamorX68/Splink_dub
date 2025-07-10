@@ -9,7 +9,12 @@ import click
 from dublette.data.generation import generate_test_data, normalize_existing_test_data, normalize_csv_file
 from dublette.database.connection import setup_duckdb, create_target_table
 from dublette.detection.splink_config import configure_splink, detect_duplicates
-from dublette.evaluation.metrics import evaluate_model, plot_match_probability_distribution, create_comprehensive_evaluation_plots
+from dublette.evaluation.metrics import (
+    evaluate_model,
+    plot_match_probability_distribution,
+    create_comprehensive_evaluation_plots,
+    generate_evaluation_report,
+)
 
 
 @click.command()
@@ -156,6 +161,16 @@ def main(multi_table, generate_data, table_name, input_file, normalize_data, enh
     click.echo("   🎯 detailed_threshold_analysis.png (threshold sensitivity analysis)")
     click.echo("   🔥 match_quality_heatmap.png (quality analysis heatmaps)")
     click.echo("   📊 match_probability_distribution.png (standard distribution plot)")
+
+    click.echo("\n=== 📄 GENERATING EVALUATION REPORT ===")
+    report_path = generate_evaluation_report(
+        df_predictions=df_predictions,
+        threshold=0.8,
+        output_dir="output",
+        enhanced_normalization=enhanced_normalization,
+        multi_table=multi_table,
+    )
+    click.echo(f"📄 Umfassender Evaluationsbericht erstellt: {report_path}")
 
     click.echo("\nSaving results...")
     df_predictions.to_csv("output/predictions.csv", index=False)
