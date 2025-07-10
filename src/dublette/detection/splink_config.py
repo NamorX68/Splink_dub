@@ -53,7 +53,7 @@ def configure_splink(con, multi_table=True, table_name="company_data"):
             "em_convergence": 0.001,
             "max_iterations": 20,
         }
-        table_or_tables = ["company_a", "company_b"]
+        table_or_tables = ["company_data_a", "company_data_b"]
     else:
         # Single-table deduplication settings
         splink_settings = {

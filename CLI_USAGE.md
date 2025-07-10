@@ -53,16 +53,22 @@ Die Anwendung unterstützt folgende Parameter:
 
 ```bash
 # 🚀 Mit partner_test.csv und erweiterter Normalisierung (empfohlen)
-uv run python src/dublette/app.py --input-file output/partner_test.csv --enhanced-normalization
+uv run python -m src.dublette.app --input-file output/partner_test.csv --enhanced-normalization
 
 # Standard-Normalisierung mit partner_test.csv
-uv run python src/dublette/app.py --input-file output/partner_test.csv
+uv run python -m src.dublette.app --input-file output/partner_test.csv
 
 # Nur bestehende Daten normalisieren
-uv run python src/dublette/app.py --normalize-existing
+uv run python -m src.dublette.app --normalize-existing
 
 # Eigene CSV-Datei mit erweiterter Normalisierung
-uv run python src/dublette/app.py --input-file meine_daten.csv --enhanced-normalization
+uv run python -m src.dublette.app --input-file meine_daten.csv --enhanced-normalization
+
+# Datenbankstatistiken anzeigen
+uv run python -m src.dublette.app --show-db-stats
+
+# Alle Tabellen als CSV exportieren
+uv run python -m src.dublette.app --export-db-to-csv
 ```
 
 ### Weitere Beispiele
@@ -70,37 +76,53 @@ uv run python src/dublette/app.py --input-file meine_daten.csv --enhanced-normal
 #### 1. Eintabellen-Deduplication mit neuen Testdaten
 
 ```bash
-uv run python src/dublette/app.py --generate-test-data
+uv run python -m src.dublette.app --generate-test-data
 ```
 
 #### 2. Mehrtabellen-Linking mit neuen Testdaten
 
 ```bash
-uv run python src/dublette/app.py --multi-table --generate-test-data
+uv run python -m src.dublette.app --multi-table --generate-test-data
 ```
 
 #### 3. Eintabellen-Deduplication mit existierenden Daten
 
 ```bash
-uv run python src/dublette/app.py --table-name my_company_data
+uv run python -m src.dublette.app --table-name my_company_data
 ```
 
 #### 4. Erweiterte Normalisierung mit Multi-Table
 
 ```bash
-uv run python src/dublette/app.py --multi-table --input-file output/partner_test.csv --enhanced-normalization
+uv run python -m src.dublette.app --multi-table --input-file output/partner_test.csv --enhanced-normalization
 ```
 
 #### 5. Nur Normalisierung ohne Duplikaterkennung
 
 ```bash
-uv run python src/dublette/app.py --normalize-existing
+uv run python -m src.dublette.app --normalize-existing
 ```
 
-#### 6. Hilfe anzeigen
+#### 6. Persistente DuckDB-Funktionen
 
 ```bash
-uv run python src/dublette/app.py --help
+# Datenbankstatistiken anzeigen
+uv run python -m src.dublette.app --show-db-stats
+
+# Alle Tabellen als CSV exportieren
+uv run python -m src.dublette.app --export-db-to-csv
+
+# Datenbank aufräumen und optimieren
+uv run python -m src.dublette.app --cleanup-db
+
+# Bestehende Ergebnisse wiederverwenden
+uv run python -m src.dublette.app --use-existing-results
+```
+
+#### 7. Hilfe anzeigen
+
+```bash
+uv run python -m src.dublette.app --help
 ```
 
 ## Modi im Detail
@@ -135,14 +157,25 @@ Die Anwendung arbeitet mit folgenden **deutschen Standardfeldern**:
 
 Die Anwendung erstellt folgende Dateien im `output/` Verzeichnis:
 
-- `predictions.csv`: Duplikat-Vorhersagen mit Wahrscheinlichkeiten
-- `target_table.csv`: Zieltabelle mit finalen Ergebnissen
+### Persistente DuckDB-Datei
+- `splink_data.duckdb`: Hauptdatenbank mit allen Tabellen und Ergebnissen
+
+### Kompatibilitätsdateien (optional)
+- `predictions.csv`: Duplikat-Vorhersagen mit Wahrscheinlichkeiten (mit `--save-csv-files`)
+- `target_table.csv`: Zieltabelle mit finalen Ergebnissen (mit `--save-csv-files`)
+
+### Visualisierungen
 - `comprehensive_evaluation_analysis.png`: Umfassende Analyse (6 Plots)
 - `detailed_threshold_analysis.png`: Schwellenwert-Sensitivitätsanalyse
 - `match_quality_heatmap.png`: Qualitäts-Heatmaps
 - `match_probability_distribution.png`: Standard-Wahrscheinlichkeitsverteilung
+
+### Testdaten
 - `company_a_data.csv` / `company_b_data.csv`: Generierte Testdaten (falls generiert)
 - `partner_test.csv`: Beispiel-Partnerdaten
+
+### Evaluationsbericht
+- `evaluation_report.md`: Umfassender Evaluationsbericht mit Metriken und Empfehlungen
 
 ## Splink-Konfiguration
 

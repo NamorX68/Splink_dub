@@ -30,10 +30,10 @@ normalize_partner_data(df,
 ### 4. **CLI erweitert**
 ```bash
 # Standard (wie immer)
-uv run python src/dublette/app.py --input-file output/partner_test.csv
+uv run python -m src.dublette.app --input-file output/partner_test.csv
 
 # Enhanced Features
-uv run python src/dublette/app.py --input-file output/partner_test.csv --enhanced-normalization
+uv run python -m src.dublette.app --input-file output/partner_test.csv --enhanced-normalization
 
 # jellyfish installieren für Enhanced-Mode
 uv add jellyfish
@@ -44,22 +44,22 @@ uv add jellyfish
 ### Standard-Workflow (bewährt)
 ```bash
 # Basis-Normalisierung (Standard)
-uv run python src/dublette/app.py --input-file output/partner_test.csv
+uv run python -m src.dublette.app --input-file output/partner_test.csv
 
 # Ohne Normalisierung (Debug)
-uv run python src/dublette/app.py --input-file output/partner_test.csv --no-normalize-data
+uv run python -m src.dublette.app --input-file output/partner_test.csv --no-normalize-data
 ```
 
 ### Enhanced-Workflow (neu)
 ```bash
 # Mit allen Enhanced-Features
-uv run python src/dublette/app.py --input-file output/partner_test.csv --enhanced-normalization
+uv run python -m src.dublette.app --input-file output/partner_test.csv --enhanced-normalization
 
 # Multi-Table + Enhanced
-uv run python src/dublette/app.py --multi-table --generate-test-data --enhanced-normalization
+uv run python -m src.dublette.app --multi-table --generate-test-data --enhanced-normalization
 
 # Eigene CSV + Enhanced
-uv run python src/dublette/app.py --input-file data.csv --enhanced-normalization
+uv run python -m src.dublette.app --input-file data.csv --enhanced-normalization
 ```
 
 ## 📦 Dependencies (optional)

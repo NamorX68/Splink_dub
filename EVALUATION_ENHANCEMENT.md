@@ -141,7 +141,7 @@ Niedrige Confidence (0-40%): 7,200 Predictions
 
 ### **Standard Workflow (erweitert):**
 ```bash
-uv run python src/dublette/app.py --generate-test-data
+uv run python -m src.dublette.app --generate-test-data
 ```
 
 **Neue Ausgabe:**
@@ -168,7 +168,7 @@ uv run python src/dublette/app.py --generate-test-data
 
 ### **Enhanced Normalization + Advanced Blocking:**
 ```bash
-uv run python src/dublette/app.py --generate-test-data --enhanced-normalization
+uv run python -m src.dublette.app --generate-test-data --enhanced-normalization
 ```
 → Kombiniert die beste Normalisierung mit den besten Blocking Rules!
 

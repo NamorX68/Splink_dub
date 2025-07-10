@@ -124,22 +124,22 @@ uv add jellyfish
 ### Standard-Workflow
 ```bash
 # Mit Normalisierung (Standard)
-uv run python src/dublette/app.py --input-file output/partner_test.csv
+uv run python -m src.dublette.app --input-file output/partner_test.csv
 
 # Mit Enhanced-Algorithmen
-uv run python src/dublette/app.py --input-file output/partner_test.csv --enhanced-normalization
+uv run python -m src.dublette.app --input-file output/partner_test.csv --enhanced-normalization
 
 # Ohne Normalisierung (Debug)
-uv run python src/dublette/app.py --input-file output/partner_test.csv --no-normalize-data
+uv run python -m src.dublette.app --input-file output/partner_test.csv --no-normalize-data
 ```
 
 ### Bestehende Daten normalisieren
 ```bash
 # Alle Dateien im output/ Verzeichnis
-uv run python src/dublette/app.py --normalize-existing
+uv run python -m src.dublette.app --normalize-existing
 
 # Spezifische CSV-Datei
-uv run python src/dublette/app.py --input-file data.csv
+uv run python -m src.dublette.app --input-file data.csv
 ```
 
 ### Programmatisch nutzen

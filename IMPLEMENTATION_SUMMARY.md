@@ -5,17 +5,20 @@
 Ein **modularer POC für Duplikaterkennung** in Python mit deutschen Daten. Das System kann sowohl **Multi-Table-Linking** (Verknüpfung zwischen verschiedenen Tabellen) als auch **Single-Table-Deduplication** (Duplikate in einer Tabelle finden) durchführen.
 
 ### Features
+- **Persistente DuckDB-Speicherung**: Alle Daten in `output/splink_data.duckdb`
 - **Flexible Eingaben**: Generierte Testdaten, Multi-Table-Szenarien, eigene CSV-Dateien
+- **Erweiterte Normalisierung**: Standard- und Enhanced-Mode für deutsche Datenstrukturen
 - **Deutsche Datenstruktur**: Arbeitet mit deutschen Spaltennamen (SATZNR, NAME, etc.)
 - **Automatische Modusauswahl**: Erkennt selbst ob Single-File oder Multi-Table
-- **Komplette Pipeline**: Von Datengenerierung bis Evaluation
+- **Intelligente Caching**: Zeitstempel-basierte Aktualisierung
+- **Komplette Pipeline**: Von Datengenerierung bis Evaluation mit umfassenden Berichten
 
 ## Tech-Stack
 
 ### Haupttechnologien
 - **Python 3.11+**: Hauptsprache
 - **Splink v4**: Record Linkage und Duplikaterkennung
-- **DuckDB**: In-Memory SQL-Datenbank
+- **DuckDB**: Persistente SQL-Datenbank
 - **uv**: Package Manager
 - **Click**: CLI Framework
 
@@ -23,21 +26,23 @@ Ein **modularer POC für Duplikaterkennung** in Python mit deutschen Daten. Das 
 - **pandas**: Datenmanipulation
 - **matplotlib**: Visualisierung
 - **faker**: Testdaten generieren
+- **jellyfish**: Phonetische Algorithmen (optional)
 
 ## Projektstruktur
 
 ### Module
 ```
 src/dublette/
-├── app.py                 # CLI-Hauptanwendung
+├── app.py                 # CLI-Hauptanwendung mit persistenter DuckDB
 ├── data/
-│   └── generation.py      # Testdaten generieren
+│   ├── generation.py      # Testdaten generieren mit Normalisierung
+│   └── normalization.py   # Umfassende Datennormalisierung
 ├── database/
-│   └── connection.py      # DuckDB-Setup
+│   └── connection.py      # DuckDB-Setup mit persistenter Speicherung
 ├── detection/
-│   └── splink_config.py   # Splink-Konfiguration
+│   └── splink_config.py   # Splink-Konfiguration mit erweiterten Blocking Rules
 └── evaluation/
-    └── metrics.py         # Evaluation und Plots
+    └── metrics.py         # Evaluation, Plots und Berichte
 ```
 
 ### Datenmodell (Deutsche Spaltennamen)
@@ -54,20 +59,29 @@ src/dublette/
 ## Verwendung
 
 ### 1. Multi-Table-Linking
-Verknüpfung zwischen zwei Tabellen (`company_a` und `company_b`):
+Verknüpfung zwischen zwei Tabellen (`company_data_a` und `company_data_b`):
 ```bash
-uv run python src/dublette/app.py --multi-table --generate-test-data
+uv run python -m src.dublette.app --multi-table --generate-test-data
 ```
 
 ### 2. Single-Table-Deduplication
 Duplikate in einer Tabelle finden:
 ```bash
-uv run python src/dublette/app.py --generate-test-data
+uv run python -m src.dublette.app --generate-test-data
 ```
 
-### 3. Eigene CSV-Dateien
+### 3. Eigene CSV-Dateien mit Enhanced Normalization
 ```bash
-uv run python src/dublette/app.py --input-file output/partnerdaten.csv
+uv run python -m src.dublette.app --input-file output/partnerdaten.csv --enhanced-normalization
+```
+
+### 4. Persistente DuckDB-Funktionen
+```bash
+# Datenbankstatistiken
+uv run python -m src.dublette.app --show-db-stats
+
+# Bestehende Ergebnisse verwenden
+uv run python -m src.dublette.app --use-existing-results
 ```
 
 ## Splink-Konfiguration
@@ -106,16 +120,19 @@ uv run python src/dublette/app.py --input-file output/partnerdaten.csv
 ### Häufige Workflows
 ```bash
 # Standard: Single-Table mit neuen Testdaten
-uv run python src/dublette/app.py --generate-test-data
+uv run python -m src.dublette.app --generate-test-data
 
-# Multi-Table mit frischen Daten
-uv run python src/dublette/app.py --multi-table --generate-test-data
+# Multi-Table mit frischen Daten und Enhanced Normalization
+uv run python -m src.dublette.app --multi-table --generate-test-data --enhanced-normalization
 
 # Eigene Daten verarbeiten
-uv run python src/dublette/app.py --input-file meine_daten.csv
+uv run python -m src.dublette.app --input-file meine_daten.csv --enhanced-normalization
 
-# Nochmal laufen lassen mit existierenden Daten
-uv run python src/dublette/app.py
+# Schneller Lauf mit existierenden Daten
+uv run python -m src.dublette.app --use-existing-results
+
+# Datenbankstatistiken anzeigen
+uv run python -m src.dublette.app --show-db-stats
 ```
 
 ## Setup und Development
@@ -130,7 +147,7 @@ cd Splink_dub
 uv sync
 
 # Laufen lassen
-uv run python src/dublette/app.py --help
+uv run python -m src.dublette.app --help
 ```
 
 ### Package Management
@@ -141,14 +158,18 @@ uv run python src/dublette/app.py --help
 ## Besondere Features
 
 ### Intelligente Verarbeitung
+- **Persistente DuckDB-Speicherung**: Alle Daten bleiben zwischen Sessions erhalten
 - **Automatische Modusauswahl**: Erkennt selbst ob Single- oder Multi-Table
+- **Intelligente Caching**: Zeitstempel-basierte Aktualisierung nur bei Änderungen
 - **Flexible Inputs**: Verschiedene CSV-Formate und Delimiter
 - **Robuste Fehlerbehandlung**: Gute Fehlermeldungen und Fallbacks
+- **Erweiterte Normalisierung**: Standard- und Enhanced-Mode für deutsche Datenstrukturen
 
 ### Performance-Optimierungen
-- **DuckDB In-Memory**: Schnelle SQL-Operationen ohne Datei-I/O
-- **Splink Blocking**: Reduziert Vergleichspaare durch Vorfilterung
+- **DuckDB Persistent**: Schnelle SQL-Operationen mit dauerhafter Speicherung
+- **Splink Blocking**: Reduziert Vergleichspaare durch intelligente Vorfilterung
 - **Efficient Deduplication**: Connected Components für Gruppierung
+- **Caching**: Wiederverwendung bestehender Ergebnisse mit `--use-existing-results`
 
 ### Deutsche Lokalisierung
 - **Spaltennamen**: Vollständig deutsche Bezeichnungen
@@ -163,4 +184,4 @@ uv run python src/dublette/app.py --help
 - **Compliance**: DSGVO-konforme Datenkonsolidierung
 - **Prototyping**: Schnelle POCs für Record Linkage
 
-**Modularer Splink-POC mit deutscher Lokalisierung - ready-to-use!**
+**Modularer Splink-POC mit deutscher Lokalisierung und persistenter DuckDB-Speicherung - production-ready!**
