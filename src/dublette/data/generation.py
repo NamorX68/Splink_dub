@@ -262,18 +262,11 @@ def generate_test_data(multi_table=True, apply_normalization=True, enhanced_norm
 
     # Save data to CSV files
     # Get the project root directory (3 levels up from this file)
-    project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
-    output_dir = os.path.join(project_root, "output")
-
-    # Save raw data (before normalization) and normalized data
+    # Data generated and stored in database tables company_data_raw_a and company_data_raw_b
     if apply_normalization:
-        df_company_a.to_csv(os.path.join(output_dir, "company_a_data.csv"), index=False)
-        df_company_b.to_csv(os.path.join(output_dir, "company_b_data.csv"), index=False)
-        print("Saved normalized test data to CSV files: output/company_a_data.csv and output/company_b_data.csv")
+        print("Generated normalized test data and stored in database tables: company_data_raw_a and company_data_raw_b")
     else:
-        df_company_a.to_csv(os.path.join(output_dir, "company_a_data.csv"), index=False)
-        df_company_b.to_csv(os.path.join(output_dir, "company_b_data.csv"), index=False)
-        print("Saved test data to CSV files: output/company_a_data.csv and output/company_b_data.csv")
+        print("Generated test data and stored in database tables: company_data_raw_a and company_data_raw_b")
 
     return df_company_a, df_company_b
 
@@ -324,9 +317,9 @@ def normalize_csv_file(
         df_normalized = normalize_partner_data(df, normalize_for_splink=normalize_for_splink)
 
     # Speichern wenn Ausgabepfad angegeben
+    # CSV file output disabled - data stored in database only
     if output_file_path:
-        df_normalized.to_csv(output_file_path, index=False)
-        print(f"Normalisierte Daten gespeichert: {output_file_path}")
+        print(f"CSV export disabled - normalisierte Daten in Datenbank verfügbar (output_file_path: {output_file_path})")
 
     return df_normalized
 

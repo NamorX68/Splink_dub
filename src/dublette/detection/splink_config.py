@@ -16,7 +16,7 @@ def configure_splink(con, multi_table=True, table_name="company_data"):
     Args:
         con (duckdb.DuckDBPyConnection): DuckDB connection
         multi_table (bool): If True, performs linking between two tables. If False, performs deduplication on single table.
-        table_name (str): Name of the table for single-table processing.
+        table_name (str or list): Name of the table for single-table processing, or list of tables for multi-table.
 
     Returns:
         Linker: Configured Splink linker object
@@ -53,7 +53,11 @@ def configure_splink(con, multi_table=True, table_name="company_data"):
             "em_convergence": 0.001,
             "max_iterations": 20,
         }
-        table_or_tables = ["company_data_a", "company_data_b"]
+        # Use provided table names or default to company_data_a/company_data_b
+        if isinstance(table_name, list):
+            table_or_tables = table_name
+        else:
+            table_or_tables = ["company_data_a", "company_data_b"]
     else:
         # Single-table deduplication settings
         splink_settings = {

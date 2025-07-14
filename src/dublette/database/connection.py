@@ -1,12 +1,20 @@
 """
-Database Module for Duplicate Detection POC
+Database Module for Duplicate Detection - Clean Version
 
-This module provides functions for setting up and interacting with DuckDB.
+This module provides minimal, explicit functions for the 4 core workflows:
+1. Test data generation: company_data_raw_a/b → company_data_a/b
+2. CSV input: company_data_raw → company_data
+3. Prediction: single-table or multi-table
+4. Reference data: reference_duplicates table
+
+All legacy code, views, and combined tables have been removed.
 """
 
 import duckdb
+import pandas as pd
 import os
 import click
+from dublette.data.normalization import normalize_partner_data
 
 
 def get_database_path():
@@ -17,776 +25,630 @@ def get_database_path():
     return os.path.join(output_dir, "splink_data.duckdb")
 
 
-def check_table_exists(con, table_name):
-    """Check if a table exists in the database."""
-    try:
-        con.execute(f"SELECT COUNT(*) FROM {table_name}").fetchone()
-        return True
-    except Exception:
-        return False
+def get_connection():
+    """Get a connection to the DuckDB database."""
+    db_path = get_database_path()
+    return duckdb.connect(database=db_path)
 
 
-def setup_duckdb(generate_test_data=False, multi_table=True, input_file=None, force_refresh=False):
+# ============================================================================
+# WORKFLOW 1: TEST DATA GENERATION
+# ============================================================================
+
+
+def save_generated_test_data(df_company_a, df_company_b):
     """
-    Set up DuckDB with persistent storage and intelligent data management.
+    Save generated test data to database with normalization.
 
-    Args:
-        generate_test_data (bool): If True, expects fresh data generation. If False, loads existing data.
-        multi_table (bool): If True, loads both tables for linking. If False, loads both and creates combined view for deduplication.
-        input_file (str): Path to custom input CSV file. If provided, uses this for single-table deduplication.
-        force_refresh (bool): If True, forces regeneration of all tables even if they exist.
+    Tables created:
+    - company_data_raw_a (original generated data A)
+    - company_data_raw_b (original generated data B)
+    - company_data_a (normalized data A)
+    - company_data_b (normalized data B)
 
     Returns:
-        duckdb.DuckDBPyConnection: DuckDB connection
+        tuple: (count_a, count_b)
     """
-    # Connect to persistent DuckDB database
-    db_path = get_database_path()
-    click.echo(f"📁 Connecting to persistent DuckDB: {db_path}")
-    con = duckdb.connect(database=db_path)
+    con = get_connection()
 
-    # Handle both input file AND test data generation
-    if input_file and generate_test_data:
-        click.echo("🎯 Setting up both custom input file and generated test data...")
-        
-        # First setup custom input file
-        setup_custom_input_file(con, input_file, force_refresh)
-        
-        # Then setup test data (this will create additional tables)
-        setup_test_data(con, generate_test_data, multi_table, force_refresh)
-        
-        # Create combined view that includes both datasets
-        create_combined_view(con)
-        
-        return con
-    
-    # Handle custom input file only
-    elif input_file:
-        return setup_custom_input_file(con, input_file, force_refresh)
+    # Save raw generated data
+    con.execute("DROP TABLE IF EXISTS company_data_raw_a")
+    con.execute("DROP TABLE IF EXISTS company_data_raw_b")
+    con.register("temp_raw_a", df_company_a)
+    con.register("temp_raw_b", df_company_b)
+    con.execute("CREATE TABLE company_data_raw_a AS SELECT * FROM temp_raw_a")
+    con.execute("CREATE TABLE company_data_raw_b AS SELECT * FROM temp_raw_b")
 
-    # Handle generated test data
-    return setup_test_data(con, generate_test_data, multi_table, force_refresh)
+    # Normalize and save
+    df_normalized_a = normalize_partner_data(df_company_a, enhanced_mode=True)
+    df_normalized_b = normalize_partner_data(df_company_b, enhanced_mode=True)
+
+    con.execute("DROP TABLE IF EXISTS company_data_a")
+    con.execute("DROP TABLE IF EXISTS company_data_b")
+    con.register("temp_norm_a", df_normalized_a)
+    con.register("temp_norm_b", df_normalized_b)
+    con.execute("CREATE TABLE company_data_a AS SELECT * FROM temp_norm_a")
+    con.execute("CREATE TABLE company_data_b AS SELECT * FROM temp_norm_b")
+
+    con.close()
+    return len(df_company_a), len(df_company_b)
 
 
-def setup_custom_input_file(con, input_file, force_refresh=False):
-    """Setup database with custom input file."""
-    table_name = "partnerdaten_raw"
+def get_generated_test_data():
+    """
+    Get generated test data from database.
 
-    # Check if table already exists and is up-to-date
-    if not force_refresh and check_table_exists(con, table_name):
-        # Check if file is newer than the database table
-        file_mtime = os.path.getmtime(input_file)
-        db_mtime = os.path.getmtime(get_database_path())
+    Returns:
+        tuple: (df_company_a, df_company_b) or (None, None) if not found
+    """
+    con = get_connection()
 
-        if file_mtime <= db_mtime:
-            click.echo(f"✅ Using existing table '{table_name}' (up-to-date)")
-            create_normalized_company_data_table(con)
-            return con
-
-    click.echo(f"📊 Loading custom input file: {input_file}")
-
-    # Load the custom file
     try:
-        # First, let's check what the actual delimiter is
-        with open(input_file, "r", encoding="utf-8") as f:
-            first_line = f.readline().strip()
-            click.echo(f"First line: {first_line}")
-
-            # Determine delimiter based on content
-            if ";" in first_line and first_line.count(";") > first_line.count(","):
-                delimiter = ";"
-                click.echo("Using semicolon (;) as delimiter")
-            else:
-                delimiter = ","
-                click.echo("Using comma (,) as delimiter")
-
-        # Load the custom file with robust parsing
-        con.execute(f"DROP TABLE IF EXISTS {table_name}")
-        con.execute(f"""
-            CREATE TABLE {table_name} AS 
-            SELECT * FROM read_csv('{input_file}', 
-                                 delim='{delimiter}',
-                                 quote='"',
-                                 header=true,
-                                 ignore_errors=true,
-                                 null_padding=true)
-        """)
-
-        # Debug: Show the columns that were actually loaded
-        columns_result = con.execute(f"PRAGMA table_info({table_name})").fetchall()
-        click.echo(f"Loaded columns: {[col[1] for col in columns_result]}")
-
-        # Create normalized table
-        create_normalized_company_data_table(con)
-
-        records_count = con.execute(f"SELECT COUNT(*) FROM {table_name}").fetchone()[0]
-        click.echo(f"✅ Loaded {records_count} records from custom file into persistent database")
-
-    except Exception as e:
-        click.echo(f"❌ Error loading file: {e}")
-        # Fallback: try with semicolon delimiter and robust options
-        con.execute(f"DROP TABLE IF EXISTS {table_name}")
-        con.execute(f"""
-            CREATE TABLE {table_name} AS 
-            SELECT * FROM read_csv('{input_file}', 
-                                 delim=';',
-                                 quote='"',
-                                 header=true,
-                                 ignore_errors=true,
-                                 null_padding=true,
-                                 auto_detect=false)
-        """)
-        click.echo("Used fallback semicolon delimiter with robust parsing")
-        create_normalized_company_data_table(con)
-
-    return con
+        df_a = con.execute("SELECT * FROM company_data_a").df()
+        df_b = con.execute("SELECT * FROM company_data_b").df()
+        con.close()
+        return df_a, df_b
+    except Exception:
+        con.close()
+        return None, None
 
 
-def create_normalized_company_data_table(con):
-    """Create normalized company_data TABLE from partnerdaten_raw with enhanced normalization."""
-    from dublette.data.normalization import normalize_partner_data
-    
-    click.echo("🔄 Creating normalized company_data table...")
-    
-    # Drop existing table or view if it exists (robuste Lösung)
-    try:
-        con.execute("DROP TABLE IF EXISTS company_data")
-    except:
-        pass
-    try:
-        con.execute("DROP VIEW IF EXISTS company_data")
-    except:
-        pass
-    
-    # Load raw data from database
-    df_raw = con.execute("SELECT * FROM partnerdaten_raw").df()
-    click.echo(f"📊 Loaded {len(df_raw)} records from partnerdaten_raw")
-    
-    # Apply enhanced normalization
+# ============================================================================
+# WORKFLOW 2: CSV INPUT DATA
+# ============================================================================
+
+
+def save_csv_input_data(csv_file_path):
+    """
+    Save CSV input data to database with normalization.
+
+    Tables created:
+    - company_data_raw (original CSV data)
+    - company_data (normalized data)
+
+    Returns:
+        int: Number of records saved
+    """
+    con = get_connection()
+
+    # Load CSV file
+    df_raw = pd.read_csv(csv_file_path)
+
+    # Save raw CSV data
+    con.execute("DROP TABLE IF EXISTS company_data_raw")
+    con.register("temp_raw", df_raw)
+    con.execute("CREATE TABLE company_data_raw AS SELECT * FROM temp_raw")
+
+    # Normalize and save
     df_normalized = normalize_partner_data(df_raw, enhanced_mode=True)
-    click.echo("✅ Enhanced normalization applied")
-    
-    # Create normalized table in database
-    con.execute("CREATE TABLE company_data AS SELECT * FROM df_normalized")
-    
-    # Verify the normalization
-    sample = con.execute("SELECT NAME, VORNAME, ORT FROM company_data LIMIT 3").fetchall()
-    click.echo("📋 Sample normalized data:")
-    for row in sample:
-        click.echo(f"   {row}")
-    
-    click.echo("✅ Normalized company_data table created successfully")
+
+    con.execute("DROP TABLE IF EXISTS company_data")
+    con.register("temp_norm", df_normalized)
+    con.execute("CREATE TABLE company_data AS SELECT * FROM temp_norm")
+
+    con.close()
+    return len(df_raw)
 
 
-def setup_test_data(con, generate_test_data, multi_table, force_refresh):
-    """Setup database with generated test data."""
-    # Get paths to CSV files
-    project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
-    output_dir = os.path.join(project_root, "output")
-
-    company_a_path = os.path.join(output_dir, "company_a_data.csv")
-    company_b_path = os.path.join(output_dir, "company_b_data.csv")
-
-    # Check if we need to reload data
-    need_reload = force_refresh or generate_test_data
-
-    if not need_reload:
-        # Check if tables exist
-        if check_table_exists(con, "company_a_raw") and (not multi_table or check_table_exists(con, "company_b_raw")):
-            # Check if CSV files are newer than database
-            if os.path.exists(company_a_path):
-                file_mtime = os.path.getmtime(company_a_path)
-                db_mtime = os.path.getmtime(get_database_path())
-
-                if file_mtime <= db_mtime:
-                    click.echo("✅ Using existing tables from persistent database (up-to-date)")
-                    create_views_for_test_data(con, multi_table)
-                    return con
-
-    # Load data from CSV files
-    click.echo("📊 Loading test data into persistent database...")
-
-    # Check if CSV files exist when not generating test data
-    if not generate_test_data:
-        if not os.path.exists(company_a_path):
-            raise FileNotFoundError("company_a_data.csv not found. Please run with --generate-test-data flag first.")
-        if multi_table and not os.path.exists(company_b_path):
-            raise FileNotFoundError("company_b_data.csv not found. Please run with --generate-test-data flag first.")
-
-    # Load company_a
-    con.execute("DROP TABLE IF EXISTS company_a_raw")
-    con.execute(f"CREATE TABLE company_a_raw AS SELECT * FROM read_csv_auto('{company_a_path}')")
-
-    # Load company_b if needed
-    if multi_table:
-        con.execute("DROP TABLE IF EXISTS company_b_raw")
-        con.execute(f"CREATE TABLE company_b_raw AS SELECT * FROM read_csv_auto('{company_b_path}')")
-    elif os.path.exists(company_b_path):
-        # Load company_b even in single-table mode if file exists (for combined view)
-        con.execute("DROP TABLE IF EXISTS company_b_raw")
-        con.execute(f"CREATE TABLE company_b_raw AS SELECT * FROM read_csv_auto('{company_b_path}')")
-
-    # Create views
-    create_views_for_test_data(con, multi_table)
-
-    # Report success
-    count_a = con.execute("SELECT COUNT(*) FROM company_a_raw").fetchone()[0]
-    click.echo(f"✅ Loaded {count_a} records from company_a_data.csv")
-
-    if multi_table and check_table_exists(con, "company_b_raw"):
-        count_b = con.execute("SELECT COUNT(*) FROM company_b_raw").fetchone()[0]
-        click.echo(f"✅ Loaded {count_b} records from company_b_data.csv")
-
-    return con
-
-
-def create_views_for_test_data(con, multi_table):
-    """Create standardized views for test data with normalization support."""
-    click.echo("🔧 Creating normalized test data tables...")
-    
-    # Drop both VIEW and TABLE if they exist (robuste Lösung)
-    try:
-        con.execute("DROP TABLE IF EXISTS company_data")
-    except Exception:
-        pass
-    try:
-        con.execute("DROP VIEW IF EXISTS company_data")
-    except Exception:
-        pass
-
-    # Create company_data_a view first (always exists)
-    con.execute("DROP VIEW IF EXISTS company_data_a")
-    con.execute("""
-    CREATE VIEW company_data_a AS 
-    SELECT 
-        SATZNR,
-        NAME,
-        VORNAME,
-        GEBURTSDATUM,
-        GESCHLECHT,
-        LAND,
-        POSTLEITZAHL,
-        ORT,
-        ADRESSZEILE
-    FROM company_a_raw
-    """)
-
-    # Create company_data_b view if needed
-    if multi_table and check_table_exists(con, "company_b_raw"):
-        con.execute("DROP VIEW IF EXISTS company_data_b")
-        con.execute("""
-        CREATE VIEW company_data_b AS 
-        SELECT 
-            SATZNR,
-            NAME,
-            VORNAME,
-            GEBURTSDATUM,
-            GESCHLECHT,
-            LAND,
-            POSTLEITZAHL,
-            ORT,
-            ADRESSZEILE
-        FROM company_b_raw
-        """)
-
-    # Now create normalized company_data TABLE (not view) for consistency
-    if not multi_table:
-        # For single-table: combine company_a and company_b (if exists) and normalize
-        click.echo("🔄 Creating normalized combined company_data table...")
-        
-        if check_table_exists(con, "company_b_raw"):
-            # Combine both datasets
-            combined_df = con.execute("""
-            SELECT * FROM company_a_raw
-            UNION ALL
-            SELECT * FROM company_b_raw
-            """).df()
-        else:
-            # Only company_a
-            combined_df = con.execute("SELECT * FROM company_a_raw").df()
-        
-        # Apply normalization
-        from dublette.data.normalization import normalize_partner_data
-        df_normalized = normalize_partner_data(combined_df, enhanced_mode=True)
-        
-        # Create normalized table
-        con.execute("CREATE TABLE company_data AS SELECT * FROM df_normalized")
-        click.echo("✅ Created normalized combined company_data table")
-    else:
-        # For multi-table: create separate normalized tables
-        click.echo("🔄 Creating separate normalized tables for multi-table linking...")
-        
-        # Normalize company_data_a
-        from dublette.data.normalization import normalize_partner_data
-        df_a = con.execute("SELECT * FROM company_a_raw").df()
-        df_a_norm = normalize_partner_data(df_a, enhanced_mode=True)
-        con.execute("DROP TABLE IF EXISTS company_data_a_normalized")
-        con.execute("CREATE TABLE company_data_a_normalized AS SELECT * FROM df_a_norm")
-        
-        # Normalize company_data_b if exists
-        if check_table_exists(con, "company_b_raw"):
-            df_b = con.execute("SELECT * FROM company_b_raw").df()
-            df_b_norm = normalize_partner_data(df_b, enhanced_mode=True)
-            con.execute("DROP TABLE IF EXISTS company_data_b_normalized")
-            con.execute("CREATE TABLE company_data_b_normalized AS SELECT * FROM df_b_norm")
-        
-        click.echo("✅ Created normalized tables for multi-table processing")
-
-
-def save_predictions_to_database(con, df_predictions, table_name="predictions"):
-    """Save predictions to the persistent database."""
-    click.echo(f"💾 Saving predictions to persistent database table: {table_name}")
-
-    # Drop existing table if it exists
-    con.execute(f"DROP TABLE IF EXISTS {table_name}")
-
-    # Create predictions table
-    con.execute(f"CREATE TABLE {table_name} AS SELECT * FROM df_predictions")
-
-    count = con.execute(f"SELECT COUNT(*) FROM {table_name}").fetchone()[0]
-    click.echo(f"✅ Saved {count} predictions to database")
-
-    return count
-
-
-def save_target_table_to_database(con, df_target, table_name="target_table"):
-    """Save target table to the persistent database."""
-    click.echo(f"💾 Saving target table to persistent database table: {table_name}")
-
-    # Drop existing table if it exists
-    con.execute(f"DROP TABLE IF EXISTS {table_name}")
-
-    # Create target table
-    con.execute(f"CREATE TABLE {table_name} AS SELECT * FROM df_target")
-
-    count = con.execute(f"SELECT COUNT(*) FROM {table_name}").fetchone()[0]
-    click.echo(f"✅ Saved {count} target records to database")
-
-    return count
-
-
-def get_existing_predictions(con, table_name="predictions"):
-    """Get existing predictions from database if available."""
-    if check_table_exists(con, table_name):
-        df = con.execute(f"SELECT * FROM {table_name}").df()
-        click.echo(f"📊 Loaded {len(df)} existing predictions from database")
-        return df
-    return None
-
-
-def get_existing_target_table(con, table_name="target_table"):
-    """Get existing target table from database if available."""
-    if check_table_exists(con, table_name):
-        df = con.execute(f"SELECT * FROM {table_name}").df()
-        click.echo(f"📊 Loaded {len(df)} existing target records from database")
-        return df
-    return None
-
-
-def create_target_table(con, df_predictions, threshold=0.8, save_to_db=True):
+def get_csv_input_data():
     """
-    Create a target table from duplicate detection results.
-    Keeps the best record from each duplicate group.
+    Get CSV input data from database.
+
+    Returns:
+        pd.DataFrame or None: Normalized CSV data
+    """
+    con = get_connection()
+
+    try:
+        df = con.execute("SELECT * FROM company_data").df()
+        con.close()
+        return df
+    except Exception:
+        con.close()
+        return None
+
+
+# ============================================================================
+# WORKFLOW 3: PREDICTIONS
+# ============================================================================
+
+
+def save_predictions_to_database(df_predictions):
+    """Save predictions to database."""
+    con = get_connection()
+
+    con.execute("DROP TABLE IF EXISTS predictions")
+    con.register("temp_predictions", df_predictions)
+    con.execute("CREATE TABLE predictions AS SELECT * FROM temp_predictions")
+
+    con.close()
+
+
+def get_existing_predictions():
+    """
+    Get existing predictions from database.
+
+    Returns:
+        pd.DataFrame or None: Predictions if they exist
+    """
+    con = get_connection()
+
+    try:
+        df = con.execute("SELECT * FROM predictions").df()
+        con.close()
+        return df
+    except Exception:
+        con.close()
+        return None
+
+
+def save_target_table_to_database(df_target):
+    """Save target table to database."""
+    con = get_connection()
+
+    con.execute("DROP TABLE IF EXISTS target_table")
+    con.register("temp_target", df_target)
+    con.execute("CREATE TABLE target_table AS SELECT * FROM temp_target")
+
+    con.close()
+
+
+def get_existing_target_table():
+    """
+    Get existing target table from database.
+
+    Returns:
+        pd.DataFrame or None: Target table if it exists
+    """
+    con = get_connection()
+
+    try:
+        df = con.execute("SELECT * FROM target_table").df()
+        con.close()
+        return df
+    except Exception:
+        con.close()
+        return None
+
+
+def create_single_table_target(df_predictions, threshold=0.8):
+    """
+    Create target table for single-table deduplication.
 
     Args:
-        con (duckdb.DuckDBPyConnection): DuckDB connection
-        df_predictions (pd.DataFrame): DataFrame with duplicate pairs and match probability
-        threshold (float): Threshold for match probability
-        save_to_db (bool): Whether to save the result to the database
+        df_predictions: Predictions DataFrame
+        threshold: Match probability threshold
 
     Returns:
         pd.DataFrame: Target table with deduplicated records
     """
-    # Check if we're in single-file mode (company_data exists) or multi-table mode (company_a/company_b exist)
-    is_single_file = "company_data" in [t[0] for t in con.execute("SHOW TABLES").fetchall()]
+    # Filter high-confidence matches
+    df_matches = df_predictions[df_predictions["match_probability"] >= threshold].copy()
 
-    if is_single_file:
-        # Use single-file deduplication logic
-        df_target = create_deduplication_target_table(con, df_predictions, threshold)
-    else:
-        # Use multi-table logic
-        df_target = create_multi_table_target_table(con, df_predictions, threshold)
+    # Create target table with unique records
+    all_ids = set()
+    all_ids.update(df_matches["SATZNR_l"].unique())
+    all_ids.update(df_matches["SATZNR_r"].unique())
 
-    # Save to database if requested
-    if save_to_db:
-        save_target_table_to_database(con, df_target)
+    # Get data to create target table
+    con = get_connection()
+    df_data = con.execute("SELECT * FROM company_data").df()
+    con.close()
 
-    return df_target
-
-
-def create_multi_table_target_table(con, df_predictions, threshold=0.8):
-    """Create target table for multi-table linking."""
-    # Create the target table
-    con.execute("DROP VIEW IF EXISTS all_records")
-    con.execute("""
-    CREATE VIEW all_records AS
-    SELECT 
-        CAST(SATZNR AS VARCHAR) AS unique_id,
-        SATZNR,
-        NAME,
-        VORNAME,
-        GEBURTSDATUM,
-        GESCHLECHT,
-        LAND,
-        POSTLEITZAHL,
-        ORT,
-        ADRESSZEILE,
-        'company_a' AS source
-    FROM company_a
-
-    UNION ALL
-
-    SELECT 
-        CAST(SATZNR AS VARCHAR) AS unique_id,
-        SATZNR,
-        NAME,
-        VORNAME,
-        GEBURTSDATUM,
-        GESCHLECHT,
-        LAND,
-        POSTLEITZAHL,
-        ORT,
-        ADRESSZEILE,
-        'company_b' AS source
-    FROM company_b
-    """)
-
-    con.execute("DROP TABLE IF EXISTS target_table_temp")
-    con.execute("""
-    CREATE TABLE target_table_temp AS
-    SELECT 
-        SATZNR,
-        NAME,
-        VORNAME,
-        GEBURTSDATUM,
-        GESCHLECHT,
-        LAND,
-        POSTLEITZAHL,
-        ORT,
-        ADRESSZEILE,
-        source
-    FROM all_records
-    """)
-
-    # Return the target table as DataFrame
-    df_target = con.execute("SELECT * FROM target_table_temp").df()
-    con.execute("DROP TABLE IF EXISTS target_table_temp")
+    # Filter to matched IDs only (our normalized data uses SATZNR as unique_id)
+    df_target = df_data[df_data["SATZNR"].isin(all_ids)].copy()
 
     return df_target
 
 
-def create_combined_table_for_deduplication(con):
+def create_multi_table_target(df_predictions, threshold=0.8):
     """
-    Create a combined table from both company tables for deduplication.
-    This allows finding duplicates within the entire dataset.
+    Create target table for multi-table linking.
 
     Args:
-        con (duckdb.DuckDBPyConnection): DuckDB connection
+        df_predictions: Predictions DataFrame
+        threshold: Match probability threshold
 
     Returns:
-        None
+        pd.DataFrame: Target table with linked records
     """
-    # Create a combined table with all records from both sources
-    con.execute("""
-    CREATE TABLE combined_data AS
-    SELECT 
-        SATZNR,
-        NAME,
-        VORNAME,
-        GEBURTSDATUM,
-        GESCHLECHT,
-        LAND,
-        POSTLEITZAHL,
-        ORT,
-        ADRESSZEILE,
-        'company_a' AS source
-    FROM company_a
+    # Filter high-confidence matches
+    df_matches = df_predictions[df_predictions["match_probability"] >= threshold].copy()
 
-    UNION ALL
+    # Get both datasets
+    con = get_connection()
+    df_a = con.execute("SELECT * FROM company_data_a").df()
+    df_b = con.execute("SELECT * FROM company_data_b").df()
+    con.close()
 
-    SELECT 
-        SATZNR,
-        NAME,
-        VORNAME,
-        GEBURTSDATUM,
-        GESCHLECHT,
-        LAND,
-        POSTLEITZAHL,
-        ORT,
-        ADRESSZEILE,
-        'company_b' AS source
-    FROM company_b
-    """)
+    # Create target table with linked pairs
+    target_records = []
 
-    print("Created combined table for deduplication")
+    for _, row in df_matches.iterrows():
+        # Get records from both datasets using correct Splink column names
+        rec_a = df_a[df_a["SATZNR"] == row["SATZNR_l"]].iloc[0]
+        rec_b = df_b[df_b["SATZNR"] == row["SATZNR_r"]].iloc[0]
+
+        # Create combined record
+        target_record = {
+            "link_id": f"{row['SATZNR_l']}_{row['SATZNR_r']}",
+            "satznr_a": row["SATZNR_l"],
+            "satznr_b": row["SATZNR_r"],
+            "match_probability": row["match_probability"],
+            **{f"{k}_a": v for k, v in rec_a.to_dict().items() if k != "SATZNR"},
+            **{f"{k}_b": v for k, v in rec_b.to_dict().items() if k != "SATZNR"},
+        }
+        target_records.append(target_record)
+
+    return pd.DataFrame(target_records)
 
 
-def create_deduplication_target_table(con, df_predictions, threshold=0.75):
+# ============================================================================
+# WORKFLOW 4: REFERENCE DATA
+# ============================================================================
+
+
+def save_reference_duplicates_to_database(reference_file):
     """
-    Create a deduplicated target table from deduplication results.
-    Groups duplicates and keeps the most recent record from each group.
+    Save reference duplicates to database.
 
-    Args:
-        con (duckdb.DuckDBPyConnection): DuckDB connection
-        df_predictions (pd.DataFrame): DataFrame with duplicate pairs and match probability
-        threshold (float): Threshold for match probability
+    Expected CSV format: bewertung.csv with SATZNR_1, SATZNR_2, BEW_REGEL, GESAMT_BEW
 
     Returns:
-        pd.DataFrame: Deduplicated target table
+        int: Number of reference pairs saved
     """
-    # Create a temporary table with high-confidence matches
-    con.execute("DROP TABLE IF EXISTS dedup_matches")
-    con.execute("CREATE TABLE dedup_matches AS SELECT * FROM df_predictions WHERE match_probability >= ?", [threshold])
+    con = get_connection()
 
-    # Check if combined_data exists, if not create it from company_data or company_a/company_b
-    tables = con.execute("SHOW TABLES").fetchall()
-    table_names = [table[0] for table in tables]
-
-    if "combined_data" not in table_names:
-        if "company_data" in table_names:
-            # Single-file mode: use company_data directly
-            con.execute("""
-            CREATE TABLE combined_data AS
-            SELECT 
-                SATZNR,
-                NAME,
-                VORNAME,
-                GEBURTSDATUM,
-                GESCHLECHT,
-                LAND,
-                POSTLEITZAHL,
-                ORT,
-                ADRESSZEILE,
-                'single_file' AS source
-            FROM company_data
-            """)
-        else:
-            # Multi-table mode: combine company_a and company_b
-            create_combined_table_for_deduplication(con)
-
-    # Create deduplicated table using connected components approach
-    con.execute("""
-    CREATE OR REPLACE TABLE deduplicated_data AS
-    WITH RECURSIVE duplicate_groups AS (
-        -- Base case: each record starts as its own group
-        SELECT 
-            SATZNR_l AS record_id,
-            SATZNR_l AS group_leader,
-            0 AS level
-        FROM dedup_matches
-        
-        UNION
-        
-        SELECT 
-            SATZNR_r AS record_id,
-            SATZNR_r AS group_leader,
-            0 AS level
-        FROM dedup_matches
-        
-        UNION ALL
-        
-        -- Recursive case: propagate group membership
-        SELECT 
-            m.SATZNR_r AS record_id,
-            dg.group_leader,
-            dg.level + 1
-        FROM dedup_matches m
-        JOIN duplicate_groups dg ON m.SATZNR_l = dg.record_id
-        WHERE dg.level < 10  -- Prevent infinite recursion
-    ),
-    final_groups AS (
-        SELECT 
-            record_id,
-            MIN(group_leader) AS final_group_leader
-        FROM duplicate_groups
-        GROUP BY record_id
-    ),
-    all_records_with_groups AS (
-        SELECT 
-            c.*,
-            COALESCE(fg.final_group_leader, c.SATZNR) AS group_id
-        FROM combined_data c
-        LEFT JOIN final_groups fg ON c.SATZNR = fg.record_id
-    ),            ranked_records AS (
-        SELECT 
-            *,
-            ROW_NUMBER() OVER(
-                PARTITION BY group_id 
-                ORDER BY SATZNR DESC
-            ) AS rn
-        FROM all_records_with_groups
-    )
-    SELECT 
-        SATZNR,
-        NAME,
-        VORNAME,
-        GEBURTSDATUM,
-        GESCHLECHT,
-        LAND,
-        POSTLEITZAHL,
-        ORT,
-        ADRESSZEILE,
-        source,
-        group_id
-    FROM ranked_records
-    WHERE rn = 1
-    """)
-
-    # Get the deduplicated table as a DataFrame
-    df_deduplicated = con.execute("SELECT * FROM deduplicated_data").fetchdf()
-
-    return df_deduplicated
-
-
-def show_database_statistics(con):
-    """Show statistics about the persistent database."""
-    click.echo("\n📊 === DATABASE STATISTICS ===")
-
-    # Get database file info
-    db_path = get_database_path()
-    if os.path.exists(db_path):
-        db_size = os.path.getsize(db_path) / (1024 * 1024)  # MB
-        click.echo(f"📁 Database file: {db_path}")
-        click.echo(f"💾 Database size: {db_size:.2f} MB")
-
-    # Show all tables
-    tables = con.execute("SHOW TABLES").fetchall()
-    click.echo(f"🗂️  Tables in database: {len(tables)}")
-
-    for table in tables:
-        table_name = table[0]
-        try:
-            count = con.execute(f"SELECT COUNT(*) FROM {table_name}").fetchone()[0]
-            click.echo(f"   • {table_name}: {count:,} records")
-        except Exception as e:
-            click.echo(f"   • {table_name}: Error reading table ({e})")
-
-    # Show views
-    views = con.execute("SELECT name FROM sqlite_master WHERE type='view'").fetchall()
-    if views:
-        click.echo(f"👁️  Views in database: {len(views)}")
-        for view in views:
-            view_name = view[0]
-            try:
-                count = con.execute(f"SELECT COUNT(*) FROM {view_name}").fetchone()[0]
-                click.echo(f"   • {view_name}: {count:,} records")
-            except Exception as e:
-                click.echo(f"   • {view_name}: Error reading view ({e})")
-
-
-def cleanup_database(con):
-    """Clean up temporary tables and optimize database."""
-    click.echo("\n🧹 Cleaning up database...")
-
-    # List of temporary tables to clean up
-    temp_tables = ["dedup_matches", "target_table_temp", "combined_data"]
-
-    for table in temp_tables:
-        try:
-            con.execute(f"DROP TABLE IF EXISTS {table}")
-            click.echo(f"   🗑️  Cleaned up table: {table}")
-        except Exception:
-            pass
-
-    # Optimize database
+    # Load reference file with semicolon separator (German CSV format)
     try:
-        con.execute("VACUUM")
-        click.echo("   ✨ Database optimized")
+        df_ref = pd.read_csv(reference_file, sep=";")
+    except:
+        # Fallback to comma separator
+        df_ref = pd.read_csv(reference_file)
+
+    # Check if this is a bewertung.csv format
+    if "SATZNR_1" in df_ref.columns and "SATZNR_2" in df_ref.columns:
+        # Extract only the ID pairs and rename columns
+        df_ref = df_ref[["SATZNR_1", "SATZNR_2"]].copy()
+        df_ref.columns = ["id1", "id2"]
+    elif len(df_ref.columns) >= 2:
+        # Generic format: take first two columns
+        df_ref = df_ref.iloc[:, :2].copy()
+        df_ref.columns = ["id1", "id2"]
+    else:
+        raise ValueError("Reference file must have at least 2 columns (id1, id2) or bewertung.csv format")
+
+    # Save to database
+    con.execute("DROP TABLE IF EXISTS reference_duplicates")
+    con.register("temp_ref", df_ref)
+    con.execute("CREATE TABLE reference_duplicates AS SELECT * FROM temp_ref")
+
+    con.close()
+    return len(df_ref)
+
+
+def add_reference_flags_to_predictions(threshold=0.8, save_to_db=True):
+    """
+    Create predictions_with_reference table by joining predictions with reference_duplicates.
+
+    This creates a table with:
+    - All columns from predictions
+    - splink_match: 1 if match_probability >= threshold, 0 otherwise
+    - reference_match: 1 if pair exists in reference_duplicates, 0 otherwise
+
+    Join conditions:
+    - predictions.SATZNR_l = reference_duplicates.id1 AND predictions.SATZNR_r = reference_duplicates.id2
+    - OR predictions.SATZNR_l = reference_duplicates.id2 AND predictions.SATZNR_r = reference_duplicates.id1
+
+    Args:
+        threshold (float): Threshold for Splink match classification
+        save_to_db (bool): Whether to save the enhanced predictions as persistent table
+
+    Returns:
+        pd.DataFrame or None: Sample of enhanced predictions with reference flags
+    """
+    con = get_connection()
+
+    try:
+        if save_to_db:
+            click.echo("🔄 Creating predictions_with_reference table...")
+            click.echo(f"📊 Using threshold: {threshold}")
+
+            # Drop existing table if it exists
+            con.execute("DROP TABLE IF EXISTS predictions_with_reference")
+
+            # Create the joined table with TWO separate joins for both directions
+            sql_query = f"""
+            CREATE TABLE predictions_with_reference AS
+            SELECT 
+                p.*,
+                -- Splink match: 1 if probability >= threshold, 0 otherwise
+                CASE WHEN p.match_probability >= {threshold} THEN 1 ELSE 0 END AS splink_match,
+                -- Reference match direction 1: (SATZNR_l = id1 AND SATZNR_r = id2)
+                CASE WHEN r1.id1 IS NOT NULL THEN 1 ELSE 0 END AS reference_match_dir1,
+                -- Reference match direction 2: (SATZNR_l = id2 AND SATZNR_r = id1)
+                CASE WHEN r2.id1 IS NOT NULL THEN 1 ELSE 0 END AS reference_match_dir2,
+                -- Combined reference match: 1 if either direction matches
+                CASE WHEN (r1.id1 IS NOT NULL OR r2.id1 IS NOT NULL) THEN 1 ELSE 0 END AS reference_match
+            FROM predictions p
+            LEFT JOIN reference_duplicates r1 ON (p.SATZNR_l = r1.id1 AND p.SATZNR_r = r1.id2)
+            LEFT JOIN reference_duplicates r2 ON (p.SATZNR_l = r2.id2 AND p.SATZNR_r = r2.id1)
+            """
+
+            con.execute(sql_query)
+
+            # Get statistics for immediate feedback
+            count = con.execute("SELECT COUNT(*) FROM predictions_with_reference").fetchone()[0]
+            splink_matches = con.execute("SELECT COUNT(*) FROM predictions_with_reference WHERE splink_match = 1").fetchone()[0]
+            reference_matches = con.execute(
+                "SELECT COUNT(*) FROM predictions_with_reference WHERE reference_match = 1"
+            ).fetchone()[0]
+            both_agree = con.execute(
+                "SELECT COUNT(*) FROM predictions_with_reference WHERE splink_match = 1 AND reference_match = 1"
+            ).fetchone()[0]
+
+            click.echo(f"✅ Table 'predictions_with_reference' created: {count:,} rows")
+            click.echo(f"🔵 Splink matches: {splink_matches:,}")
+            click.echo(f"🟢 Reference matches: {reference_matches:,}")
+            click.echo(f"🎯 Both agree: {both_agree:,}")
+
+        # Return a sample for verification
+        df_sample = con.execute("SELECT * FROM predictions_with_reference LIMIT 100").df()
+        con.close()
+        return df_sample
+
     except Exception as e:
-        click.echo(f"   ⚠️  Database optimization failed: {e}")
+        con.close()
+        click.echo(f"❌ Error creating predictions_with_reference table: {e}")
+        return None
 
 
-def export_database_to_csv(con, output_dir="output"):
-    """Export all tables from database to CSV files."""
-    click.echo(f"\n📤 Exporting database to CSV files in {output_dir}/...")
+def get_reference_statistics_from_db():
+    """
+    Get reference comparison statistics directly from the database.
 
-    # Get all tables
-    tables = con.execute("SHOW TABLES").fetchall()
+    Returns:
+        dict or None: Statistics dictionary with counts and metrics
+    """
+    con = get_connection()
 
-    exported_count = 0
-    for table in tables:
-        table_name = table[0]
+    try:
+        # Check if predictions_with_reference table exists
+        tables = con.execute("SHOW TABLES").df()
+        if "predictions_with_reference" not in tables["name"].values:
+            click.echo("❌ No predictions_with_reference table found. Run predict command with reference data first.")
+            con.close()
+            return None
 
-        # Skip temporary tables
-        if table_name.endswith("_temp") or table_name.startswith("temp_"):
-            continue
+        # Get basic counts using SQL
+        stats_query = """
+        SELECT 
+            COUNT(*) as total_predictions,
+            SUM(reference_match) as reference_matches,
+            SUM(splink_match) as splink_matches,
+            SUM(CASE WHEN reference_match = 1 AND splink_match = 1 THEN 1 ELSE 0 END) as both_agree,
+            SUM(CASE WHEN reference_match = 1 AND splink_match = 0 THEN 1 ELSE 0 END) as only_reference,
+            SUM(CASE WHEN reference_match = 0 AND splink_match = 1 THEN 1 ELSE 0 END) as only_splink
+        FROM predictions_with_reference
+        """
 
-        try:
-            # Export to CSV
-            output_path = os.path.join(output_dir, f"{table_name}.csv")
-            con.execute(f"COPY {table_name} TO '{output_path}' (FORMAT CSV, HEADER)")
+        result = con.execute(stats_query).df().iloc[0]
 
-            count = con.execute(f"SELECT COUNT(*) FROM {table_name}").fetchone()[0]
-            click.echo(f"   📄 {table_name}.csv: {count:,} records")
-            exported_count += 1
+        # Calculate metrics
+        precision = result["both_agree"] / result["splink_matches"] if result["splink_matches"] > 0 else 0
+        recall = result["both_agree"] / result["reference_matches"] if result["reference_matches"] > 0 else 0
+        f1_score = 2 * (precision * recall) / (precision + recall) if (precision + recall) > 0 else 0
 
-        except Exception as e:
-            click.echo(f"   ❌ Failed to export {table_name}: {e}")
+        stats = {
+            "total_predictions": int(result["total_predictions"]),
+            "reference_matches": int(result["reference_matches"]),
+            "splink_matches": int(result["splink_matches"]),
+            "both_agree": int(result["both_agree"]),
+            "only_reference": int(result["only_reference"]),
+            "only_splink": int(result["only_splink"]),
+            "precision": precision,
+            "recall": recall,
+            "f1_score": f1_score,
+        }
 
-    click.echo(f"✅ Exported {exported_count} tables to CSV files")
+        con.close()
+        return stats
+
+    except Exception as e:
+        con.close()
+        click.echo(f"❌ Error getting reference statistics: {e}")
+        return None
 
 
-def create_combined_view(con):
-    """Create a combined view that includes both input file data and generated test data."""
-    click.echo("🔗 Creating combined view for input file + test data...")
-    
-    # Drop existing combined view
-    con.execute("DROP VIEW IF EXISTS company_data")
-    
-    # Create combined view that unites both datasets
-    con.execute("""
-    CREATE VIEW company_data AS 
-    SELECT 
-        SATZNR,
-        NAME,
-        VORNAME,
-        GEBURTSDATUM,
-        GESCHLECHT,
-        LAND,
-        POSTLEITZAHL,
-        ORT,
-        ADRESSZEILE,
-        'INPUT_FILE' as DATA_SOURCE
-    FROM partnerdaten_normalized
-    
-    UNION ALL
-    
-    SELECT 
-        SATZNR,
-        NAME,
-        VORNAME,
-        GEBURTSDATUM,
-        GESCHLECHT,
-        LAND,
-        POSTLEITZAHL,
-        ORT,
-        ADRESSZEILE,
-        'GENERATED_A' as DATA_SOURCE
-    FROM company_a_normalized
-    
-    UNION ALL
-    
-    SELECT 
-        SATZNR,
-        NAME,
-        VORNAME,
-        GEBURTSDATUM,
-        GESCHLECHT,
-        LAND,
-        POSTLEITZAHL,
-        ORT,
-        ADRESSZEILE,
-        'GENERATED_B' as DATA_SOURCE
-    FROM company_b_normalized
-    """)
-    
-    # Report statistics
-    count_total = con.execute("SELECT COUNT(*) FROM company_data").fetchone()[0]
-    count_input = con.execute("SELECT COUNT(*) FROM company_data WHERE DATA_SOURCE = 'INPUT_FILE'").fetchone()[0]
-    count_gen_a = con.execute("SELECT COUNT(*) FROM company_data WHERE DATA_SOURCE = 'GENERATED_A'").fetchone()[0]
-    count_gen_b = con.execute("SELECT COUNT(*) FROM company_data WHERE DATA_SOURCE = 'GENERATED_B'").fetchone()[0]
-    
-    click.echo(f"✅ Combined dataset created:")
-    click.echo(f"   📁 Input file: {count_input:,} records")
-    click.echo(f"   🧪 Generated A: {count_gen_a:,} records") 
-    click.echo(f"   🧪 Generated B: {count_gen_b:,} records")
-    click.echo(f"   📊 Total: {count_total:,} records")
+def get_detailed_reference_evaluation():
+    """
+    Get detailed evaluation based on the two binary columns:
+    - splink_match (1 if Splink predicts match, 0 otherwise)
+    - reference_match (1 if reference system has match, 0 otherwise)
+
+    This creates a confusion matrix and detailed performance metrics.
+
+    Returns:
+        dict: Detailed evaluation metrics
+    """
+    con = get_connection()
+
+    try:
+        # Check if predictions_with_reference table exists
+        tables = con.execute("SHOW TABLES").df()
+        if "predictions_with_reference" not in tables["name"].values:
+            click.echo("❌ No predictions_with_reference table found. Create it first with add_reference_flags_to_predictions()")
+            con.close()
+            return None
+
+        # Get the confusion matrix data
+        confusion_query = """
+        SELECT 
+            splink_match,
+            reference_match,
+            COUNT(*) as count
+        FROM predictions_with_reference
+        GROUP BY splink_match, reference_match
+        ORDER BY splink_match, reference_match
+        """
+
+        confusion_df = con.execute(confusion_query).df()
+
+        # Convert to confusion matrix format
+        confusion_matrix = {}
+        for _, row in confusion_df.iterrows():
+            splink = row["splink_match"]
+            reference = row["reference_match"]
+            count = row["count"]
+            confusion_matrix[f"splink_{splink}_ref_{reference}"] = count
+
+        # Calculate standard metrics
+        true_positive = confusion_matrix.get("splink_1_ref_1", 0)  # Both predict match
+        false_positive = confusion_matrix.get("splink_1_ref_0", 0)  # Splink says match, reference says no
+        false_negative = confusion_matrix.get("splink_0_ref_1", 0)  # Splink says no, reference says match
+        true_negative = confusion_matrix.get("splink_0_ref_0", 0)  # Both say no match
+
+        # Calculate performance metrics
+        total = true_positive + false_positive + false_negative + true_negative
+
+        precision = true_positive / (true_positive + false_positive) if (true_positive + false_positive) > 0 else 0
+        recall = true_positive / (true_positive + false_negative) if (true_positive + false_negative) > 0 else 0
+        f1_score = 2 * (precision * recall) / (precision + recall) if (precision + recall) > 0 else 0
+        accuracy = (true_positive + true_negative) / total if total > 0 else 0
+
+        # Calculate additional metrics
+        specificity = true_negative / (true_negative + false_positive) if (true_negative + false_positive) > 0 else 0
+        false_positive_rate = false_positive / (false_positive + true_negative) if (false_positive + true_negative) > 0 else 0
+        false_negative_rate = false_negative / (false_negative + true_positive) if (false_negative + true_positive) > 0 else 0
+
+        evaluation = {
+            "confusion_matrix": {
+                "true_positive": true_positive,
+                "false_positive": false_positive,
+                "false_negative": false_negative,
+                "true_negative": true_negative,
+                "total": total,
+            },
+            "performance_metrics": {
+                "precision": precision,
+                "recall": recall,
+                "f1_score": f1_score,
+                "accuracy": accuracy,
+                "specificity": specificity,
+                "false_positive_rate": false_positive_rate,
+                "false_negative_rate": false_negative_rate,
+            },
+            "summary": {
+                "splink_matches": true_positive + false_positive,
+                "reference_matches": true_positive + false_negative,
+                "agreements": true_positive + true_negative,
+                "disagreements": false_positive + false_negative,
+                "both_agree_match": true_positive,
+                "both_agree_no_match": true_negative,
+                "only_splink_match": false_positive,
+                "only_reference_match": false_negative,
+            },
+        }
+
+        con.close()
+        return evaluation
+
+    except Exception as e:
+        con.close()
+        click.echo(f"❌ Error getting detailed evaluation: {e}")
+        return None
+
+
+def print_detailed_reference_evaluation():
+    """
+    Print a detailed, formatted evaluation report based on the binary columns.
+    """
+    evaluation = get_detailed_reference_evaluation()
+
+    if not evaluation:
+        return
+
+    cm = evaluation["confusion_matrix"]
+    pm = evaluation["performance_metrics"]
+    summary = evaluation["summary"]
+
+    click.echo("\n🎯 === DETAILED REFERENCE EVALUATION ===")
+
+    # Confusion Matrix
+    click.echo("\n📊 CONFUSION MATRIX:")
+    click.echo("┌─────────────────┬─────────────────┬─────────────────┐")
+    click.echo("│                 │ Reference: NO   │ Reference: YES  │")
+    click.echo("├─────────────────┼─────────────────┼─────────────────┤")
+    click.echo(f"│ Splink: NO      │ {cm['true_negative']:>13,} │ {cm['false_negative']:>13,} │")
+    click.echo(f"│ Splink: YES     │ {cm['false_positive']:>13,} │ {cm['true_positive']:>13,} │")
+    click.echo("└─────────────────┴─────────────────┴─────────────────┘")
+
+    # Performance Metrics
+    click.echo("\n📈 PERFORMANCE METRICS:")
+    click.echo(f"🎯 Precision:     {pm['precision']:.1%}")
+    click.echo(f"🎯 Recall:        {pm['recall']:.1%}")
+    click.echo(f"🎯 F1-Score:      {pm['f1_score']:.1%}")
+    click.echo(f"🎯 Accuracy:      {pm['accuracy']:.1%}")
+    click.echo(f"🎯 Specificity:   {pm['specificity']:.1%}")
+
+    # Error Analysis
+    click.echo("\n❌ ERROR ANALYSIS:")
+    click.echo(f"📊 False Positive Rate: {pm['false_positive_rate']:.1%}")
+    click.echo(f"📊 False Negative Rate: {pm['false_negative_rate']:.1%}")
+
+    # Summary Statistics
+    click.echo("\n📋 SUMMARY:")
+    click.echo(f"🔵 Total Splink matches:     {summary['splink_matches']:>10,}")
+    click.echo(f"🟢 Total Reference matches:  {summary['reference_matches']:>10,}")
+    click.echo(f"✅ Both agree (Match):       {summary['both_agree_match']:>10,}")
+    click.echo(f"✅ Both agree (No Match):    {summary['both_agree_no_match']:>10,}")
+    click.echo(f"🔵 Only Splink found:        {summary['only_splink_match']:>10,}")
+    click.echo(f"🟢 Only Reference found:     {summary['only_reference_match']:>10,}")
+    click.echo(f"📊 Total predictions:        {cm['total']:>10,}")
+
+
+# ============================================================================
+# UTILITY FUNCTIONS
+# ============================================================================
+
+
+def show_database_statistics():
+    """Show statistics about tables in the database."""
+    con = get_connection()
+
+    try:
+        # Get all tables
+        tables = con.execute("SHOW TABLES").fetchall()
+
+        if not tables:
+            click.echo("📊 Database is empty")
+            con.close()
+            return
+
+        click.echo("\n📊 Database Statistics:")
+        for table in tables:
+            table_name = table[0]
+            try:
+                count = con.execute(f"SELECT COUNT(*) FROM {table_name}").fetchone()[0]
+                click.echo(f"   📋 {table_name}: {count:,} records")
+            except Exception as e:
+                click.echo(f"   ❌ {table_name}: Error reading ({e})")
+
+    except Exception as e:
+        click.echo(f"❌ Error getting database statistics: {e}")
+
+    con.close()
+
+
+def cleanup_database():
+    """Clean up any temporary tables or optimize database."""
+    con = get_connection()
+
+    try:
+        # Just run VACUUM to optimize the database
+        con.execute("VACUUM")
+        click.echo("🧹 Database optimized")
+    except Exception as e:
+        click.echo(f"❌ Error during cleanup: {e}")
+
+    con.close()

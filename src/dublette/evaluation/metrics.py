@@ -663,7 +663,7 @@ def plot_match_probability_distribution(df_predictions):
 
 
 def generate_evaluation_report(
-    df_predictions, threshold=0.8, output_dir="output", enhanced_normalization=False, multi_table=False
+    df_predictions, threshold=0.8, output_dir="output", enhanced_normalization=False, multi_table=False, reference_stats=None
 ):
     """
     Generiert einen umfassenden Evaluationsbericht als Markdown-Datei.
@@ -674,6 +674,7 @@ def generate_evaluation_report(
         output_dir (str): Verzeichnis für die Ausgabedateien
         enhanced_normalization (bool): Ob Enhanced Normalization verwendet wurde
         multi_table (bool): Ob Multi-Table-Modus verwendet wurde
+        reference_stats (dict): Optional - Benchmarking-Statistiken gegen Referenzdaten
 
     Returns:
         str: Pfad zur generierten Markdown-Datei
@@ -704,6 +705,25 @@ def generate_evaluation_report(
 - **Durchschnittliche Wahrscheinlichkeit:** {metrics["probability_stats"]["mean_probability"]:.3f}
 - **Median Wahrscheinlichkeit:** {metrics["probability_stats"]["median_probability"]:.3f}
 
+{
+        f'''## 🎯 Benchmarking gegen Referenzdaten
+
+### Vergleichsstatistiken
+- **Referenz-System Matches:** {reference_stats["reference_matches"]:,}
+- **Splink Matches:** {reference_stats["splink_matches"]:,}
+- **Übereinstimmung beider Systeme:** {reference_stats["both_agree"]:,}
+- **Nur Referenz-System gefunden:** {reference_stats["only_reference"]:,}
+- **Nur Splink gefunden:** {reference_stats["only_splink"]:,}
+
+### Performance-Metriken
+- **Precision:** {reference_stats["precision"]:.1%}
+- **Recall:** {reference_stats["recall"]:.1%}
+- **F1-Score:** {2 * (reference_stats["precision"] * reference_stats["recall"]) / (reference_stats["precision"] + reference_stats["recall"]) if (reference_stats["precision"] + reference_stats["recall"]) > 0 else 0:.1%}
+
+'''
+        if reference_stats
+        else ""
+    }
 ### Wahrscheinlichkeits-Verteilung
 - **Sehr niedrig (< 10%):** {metrics["distribution_analysis"]["probability_ranges"]["very_low_prob"]:.1%}
 - **Niedrig (10-30%):** {metrics["distribution_analysis"]["probability_ranges"]["low_prob"]:.1%}
@@ -998,3 +1018,48 @@ def get_next_steps(metrics):
     steps.append("Kontinuierliches Monitoring der Modell-Performance implementieren")
 
     return steps[:3]  # Maximal 3 Schritte
+
+
+def evaluate_against_reference(df_predictions, df_reference, threshold=0.8):
+    """
+    Evaluiere Splink-Ergebnisse gegen Referenz-Duplikate aus einem anderen System.
+
+    Args:
+        df_predictions (pd.DataFrame): Splink-Predictions mit match_probability
+        df_reference (pd.DataFrame): Referenz-Duplikate aus anderem System
+        threshold (float): Schwellwert für Splink-Matches
+
+    Returns:
+        dict: Benchmarking-Ergebnisse und Vergleichsmetriken
+    """
+
+    # Splink-Matches basierend auf Schwellwert
+    splink_matches = df_predictions[df_predictions["match_probability"] >= threshold]
+
+    # Basis-Statistiken
+    splink_match_count = len(splink_matches)
+    reference_match_count = len(df_reference)
+
+    # Versuch, gemeinsame Matches zu identifizieren (je nach Datenstruktur)
+    # Dies hängt von der Struktur der Referenz-CSV ab
+
+    comparison_stats = {
+        "splink_matches": splink_match_count,
+        "reference_matches": reference_match_count,
+        "splink_match_rate": splink_match_count / len(df_predictions) if len(df_predictions) > 0 else 0,
+        "coverage_ratio": splink_match_count / reference_match_count if reference_match_count > 0 else 0,
+        "difference_absolute": abs(splink_match_count - reference_match_count),
+        "difference_relative": (splink_match_count - reference_match_count) / reference_match_count
+        if reference_match_count > 0
+        else 0,
+    }
+
+    return {
+        "comparison_stats": comparison_stats,
+        "splink_data": {
+            "total_comparisons": len(df_predictions),
+            "matches": splink_match_count,
+            "avg_probability": df_predictions["match_probability"].mean(),
+        },
+        "reference_data": {"total_matches": reference_match_count, "columns": list(df_reference.columns)},
+    }
