@@ -50,12 +50,19 @@ from dublette.evaluation.metrics import (
     is_flag=True,
     help="Generate evaluation report and statistics.",
 )
+@click.option(
+    "--threshold",
+    type=float,
+    default=0.8,
+    help="Threshold for reference data comparison in evaluation (Splink model always uses 0.8).",
+)
 @click.help_option("--help", "-h")
 def main(
     load_data,
     load_reference,
     predict,
     evaluate,
+    threshold,
 ):
     """
     🔍 Duplicate Detection System - Simplified CLI
@@ -71,11 +78,14 @@ def main(
     1. Complete workflow:
        uv run python -m dublette.app --load-data data.csv --load-reference ref.csv --predict --evaluate
 
-    2. Step by step:
+    2. With custom threshold for reference evaluation:
+       uv run python -m dublette.app --load-data data.csv --predict --evaluate --threshold 0.75
+
+    3. Step by step:
        uv run python -m dublette.app --load-data data.csv
        uv run python -m dublette.app --load-reference ref.csv
-       uv run python -m dublette.app --predict
-       uv run python -m dublette.app --evaluate
+       uv run python -m dublette.app --predict --threshold 0.75
+       uv run python -m dublette.app --evaluate --threshold 0.75
 
     DATABASE TABLES:
     Input: company_data_raw → company_data (normalized)
@@ -149,13 +159,13 @@ def main(
                     f"📊 Match probability range: {df_predictions['match_probability'].min():.3f} - {df_predictions['match_probability'].max():.3f}"
                 )
                 matches_count = len(df_predictions[df_predictions["match_probability"] >= 0.8])
-                click.echo(f"🎯 Matches above threshold (0.8): {matches_count:,}")
+                click.echo(f"🎯 Matches above Splink threshold (0.8): {matches_count:,}")
 
             # Save predictions
             save_predictions_to_database(df_predictions)
             click.echo("💾 Predictions saved to database")
 
-        # Create target table
+        # Create target table (always use 0.8 for Splink model)
         click.echo("📋 Creating target table...")
         df_target = create_single_table_target(df_predictions, threshold=0.8)
 
@@ -165,11 +175,11 @@ def main(
         else:
             click.echo("⚠️ No target table created (no matches above threshold)")
 
-        # Create predictions with reference if reference data exists
+        # Create predictions with reference if reference data exists (use custom threshold for evaluation)
         try:
-            df_enhanced = add_reference_flags_to_predictions(threshold=0.8, save_to_db=True)
+            df_enhanced = add_reference_flags_to_predictions(threshold=threshold, save_to_db=True)
             if df_enhanced is not None:
-                click.echo("✅ Enhanced predictions with reference data created")
+                click.echo(f"✅ Enhanced predictions with reference data created (threshold: {threshold})")
             else:
                 click.echo("ℹ️ No reference data found - predictions_with_reference not created")
         except Exception as e:
@@ -230,7 +240,7 @@ def main(
         # Generate report
         report_path = generate_evaluation_report(
             df_predictions=df_predictions,
-            threshold=0.8,
+            threshold=threshold,
             output_dir="output",
             enhanced_normalization=True,
             multi_table=False,

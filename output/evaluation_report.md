@@ -1,10 +1,10 @@
 # Duplikaterkennung - Evaluationsbericht
 
-*Generiert am: 14.07.2025 um 12:25:34*
+*Generiert am: 14.07.2025 um 13:32:09*
 
 ## Konfiguration
 
-- **Threshold:** 0.8
+- **Threshold:** 0.75
 - **Modus:** Single-Table-Deduplication
 - **Normalisierung:** Enhanced (mit jellyfish)
 - **Vergleiche gesamt:** 2,430,352
@@ -12,8 +12,8 @@
 ## 📊 Kernergebnisse
 
 ### Match-Statistiken
-- **Erkannte Duplikate:** 11,129 (0.5%)
-- **Nicht-Duplikate:** 2,419,223
+- **Erkannte Duplikate:** 14,764 (0.6%)
+- **Nicht-Duplikate:** 2,415,588
 - **Durchschnittliche Wahrscheinlichkeit:** 0.076
 - **Median Wahrscheinlichkeit:** 0.000
 
@@ -21,15 +21,15 @@
 
 ### Vergleichsstatistiken
 - **Referenz-System Matches:** 30
-- **Splink Matches:** 11,129
+- **Splink Matches:** 14,764
 - **Übereinstimmung beider Systeme:** 30
 - **Nur Referenz-System gefunden:** 0
-- **Nur Splink gefunden:** 11,099
+- **Nur Splink gefunden:** 14,734
 
 ### Performance-Metriken
-- **Precision:** 0.3%
+- **Precision:** 0.2%
 - **Recall:** 100.0%
-- **F1-Score:** 0.5%
+- **F1-Score:** 0.4%
 
 
 ### Wahrscheinlichkeits-Verteilung
@@ -42,9 +42,9 @@
 ## 🎯 Qualitäts-Indikatoren
 
 ### Modell-Confidence
-- **Confidence Ratio:** 71.4%
+- **Confidence Ratio:** 53.8%
 - **Unsicherheits-Ratio:** 0.0%
-- **Separation Quality:** {'gap': np.float64(0.005296290532102121), 'overlap': 0, 'quality': 'fair', 'min_match_prob': np.float64(0.804013086407091), 'max_non_match_prob': np.float64(0.7987167958749889)}
+- **Separation Quality:** {'gap': np.float64(0.033433584606621825), 'overlap': 0, 'quality': 'fair', 'min_match_prob': np.float64(0.756843648099074), 'max_non_match_prob': np.float64(0.7234100634924522)}
 
 ### Quantile-Analyse
 - **90. Perzentil:** 0.625
@@ -93,11 +93,11 @@ Die folgenden Grafiken wurden generiert und im `output/` Verzeichnis gespeichert
 
 ### Modell-Performance
 **Niedrige Match-Rate:** Sehr konservative Duplikaterkennung. Möglicherweise werden echte Duplikate übersehen.
-**Hohe Modell-Zuversicht:** Das Modell ist bei den meisten Entscheidungen sehr sicher. Exzellente Qualität.
+**Moderate Modell-Zuversicht:** Das Modell zeigt bei über der Hälfte der Fälle hohe Zuversicht. Gute Qualität.
 **Schwache Trennung:** Das Modell hat Schwierigkeiten, zwischen Duplikaten und Nicht-Duplikaten zu unterscheiden.
 
 ### Threshold-Empfehlung
-**Threshold beibehalten:** Aktueller Threshold (0.8) scheint angemessen zu sein.
+**Threshold beibehalten:** Aktueller Threshold (0.75) scheint angemessen zu sein.
 **Schwellwert-Optimierung:** Verwenden Sie die Threshold Sensitivity Analyse, um den optimalen Wert zu finden.
 
 ### Datenqualität
