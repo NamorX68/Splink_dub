@@ -112,7 +112,7 @@ def save_csv_input_data(csv_file_path):
     con = get_connection()
 
     # Load CSV file
-    df_raw = pd.read_csv(csv_file_path)
+    df_raw = pd.read_csv(csv_file_path, sep=";")
 
     # Save raw CSV data
     con.execute("DROP TABLE IF EXISTS company_data_raw")

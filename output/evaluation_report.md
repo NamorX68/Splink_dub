@@ -1,55 +1,55 @@
 # Duplikaterkennung - Evaluationsbericht
 
-*Generiert am: 14.07.2025 um 13:32:09*
+*Generiert am: 14.07.2025 um 15:32:40*
 
 ## Konfiguration
 
 - **Threshold:** 0.75
 - **Modus:** Single-Table-Deduplication
 - **Normalisierung:** Enhanced (mit jellyfish)
-- **Vergleiche gesamt:** 2,430,352
+- **Vergleiche gesamt:** 38,782,758
 
 ## 📊 Kernergebnisse
 
 ### Match-Statistiken
-- **Erkannte Duplikate:** 14,764 (0.6%)
-- **Nicht-Duplikate:** 2,415,588
-- **Durchschnittliche Wahrscheinlichkeit:** 0.076
-- **Median Wahrscheinlichkeit:** 0.000
+- **Erkannte Duplikate:** 4,340,726 (11.2%)
+- **Nicht-Duplikate:** 34,442,032
+- **Durchschnittliche Wahrscheinlichkeit:** 0.116
+- **Median Wahrscheinlichkeit:** 0.005
 
 ## 🎯 Benchmarking gegen Referenzdaten
 
 ### Vergleichsstatistiken
-- **Referenz-System Matches:** 30
-- **Splink Matches:** 14,764
-- **Übereinstimmung beider Systeme:** 30
-- **Nur Referenz-System gefunden:** 0
-- **Nur Splink gefunden:** 14,734
+- **Referenz-System Matches:** 203
+- **Splink Matches:** 4,340,726
+- **Übereinstimmung beider Systeme:** 192
+- **Nur Referenz-System gefunden:** 11
+- **Nur Splink gefunden:** 4,340,534
 
 ### Performance-Metriken
-- **Precision:** 0.2%
-- **Recall:** 100.0%
-- **F1-Score:** 0.4%
+- **Precision:** 0.0%
+- **Recall:** 94.6%
+- **F1-Score:** 0.0%
 
 
 ### Wahrscheinlichkeits-Verteilung
-- **Sehr niedrig (< 10%):** 88.9%
+- **Sehr niedrig (< 10%):** 88.8%
 - **Niedrig (10-30%):** 0.0%
-- **Mittel (30-70%):** 5.2%
-- **Hoch (70-90%):** 5.5%
-- **Sehr hoch (≥ 90%):** 0.3%
+- **Mittel (30-70%):** 0.0%
+- **Hoch (70-90%):** 0.0%
+- **Sehr hoch (≥ 90%):** 11.2%
 
 ## 🎯 Qualitäts-Indikatoren
 
 ### Modell-Confidence
-- **Confidence Ratio:** 53.8%
+- **Confidence Ratio:** 100.0%
 - **Unsicherheits-Ratio:** 0.0%
-- **Separation Quality:** {'gap': np.float64(0.033433584606621825), 'overlap': 0, 'quality': 'fair', 'min_match_prob': np.float64(0.756843648099074), 'max_non_match_prob': np.float64(0.7234100634924522)}
+- **Separation Quality:** {'gap': np.float64(0.10433841661671617), 'overlap': 0, 'quality': 'excellent', 'min_match_prob': np.float64(0.8015455812268547), 'max_non_match_prob': np.float64(0.6972071646101385)}
 
 ### Quantile-Analyse
-- **90. Perzentil:** 0.625
-- **95. Perzentil:** 0.723
-- **99. Perzentil:** 0.723
+- **90. Perzentil:** 1.000
+- **95. Perzentil:** 1.000
+- **99. Perzentil:** 1.000
 
 ## 📈 Visualisierungen
 
@@ -92,9 +92,9 @@ Die folgenden Grafiken wurden generiert und im `output/` Verzeichnis gespeichert
 ## 🔍 Detaillierte Interpretation
 
 ### Modell-Performance
-**Niedrige Match-Rate:** Sehr konservative Duplikaterkennung. Möglicherweise werden echte Duplikate übersehen.
-**Moderate Modell-Zuversicht:** Das Modell zeigt bei über der Hälfte der Fälle hohe Zuversicht. Gute Qualität.
-**Schwache Trennung:** Das Modell hat Schwierigkeiten, zwischen Duplikaten und Nicht-Duplikaten zu unterscheiden.
+**Moderate Match-Rate:** Ausgewogene Duplikaterkennung. Das Modell ist selektiv aber nicht zu restriktiv.
+**Hohe Modell-Zuversicht:** Das Modell ist bei den meisten Entscheidungen sehr sicher. Exzellente Qualität.
+**Excellente Trennung:** Das Modell trennt sehr gut zwischen Duplikaten und Nicht-Duplikaten.
 
 ### Threshold-Empfehlung
 **Threshold beibehalten:** Aktueller Threshold (0.75) scheint angemessen zu sein.
@@ -102,7 +102,7 @@ Die folgenden Grafiken wurden generiert und im `output/` Verzeichnis gespeichert
 
 ### Datenqualität
 **Sehr gute Datenqualität:** Wenig unsichere Fälle, klare Entscheidungen möglich.
-**Konsistente Daten:** Niedrige Streuung deutet auf einheitliche Datenqualität hin.
+**Hohe Variabilität:** Große Streuung in den Wahrscheinlichkeiten - diverse Datenqualität.
 
 ## 💡 Verbesserungsvorschläge
 
@@ -124,7 +124,7 @@ Die folgenden Grafiken wurden generiert und im `output/` Verzeichnis gespeichert
 
 ## 📋 Zusammenfassung
 
-**Gesamtbewertung:** **Akzeptabel** - Modell funktioniert grundsätzlich, aber Optimierungspotential vorhanden.
+**Gesamtbewertung:** **Exzellent** - Modell zeigt hervorragende Performance mit hoher Zuversicht und klarer Trennung.
 
 **Nächste Schritte:**
 1. Manuelle Validierung einer Stichprobe durchführen
