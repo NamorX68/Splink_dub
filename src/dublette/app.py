@@ -9,23 +9,26 @@ Only supports the 4 core workflows - all legacy code removed.
 import click
 import os
 from dublette.database.connection import (
-    save_csv_input_data,
-    get_csv_input_data,
-    save_predictions_to_database,
-    save_target_table_to_database,
-    save_reference_duplicates_to_database,
-    get_existing_predictions,
-    create_single_table_target,
+    get_connection,
     show_database_statistics,
     cleanup_database,
-    add_reference_flags_to_predictions,
-    get_reference_statistics_from_db,
-    get_connection,
 )
-from dublette.detection.splink_config import configure_splink, detect_duplicates
+from dublette.database.input_data import (
+    save_csv_input_data,
+    get_prediction_data,
+)
+from dublette.database.reference_data import save_reference_duplicates_to_database
+from dublette.database.prediction_data import (
+    save_predictions_to_database,
+    get_existing_predictions,
+    add_reference_flags_to_predictions,
+)
+
+from dublette.database.evaluation_data import get_reference_statistics_from_db
+from dublette.detection.splink_config import configure_splink_german, predict_duplicates
 from dublette.evaluation.metrics import (
-    evaluate_model,
-    generate_evaluation_report,
+    calculate_metrics,
+    generate_markdown_report,
 )
 
 
@@ -43,7 +46,7 @@ from dublette.evaluation.metrics import (
 @click.option(
     "--predict",
     is_flag=True,
-    help="Run duplicate detection and create predictions and target_table.",
+    help="Run duplicate detection and create predictions.",
 )
 @click.option(
     "--evaluate",
@@ -64,35 +67,6 @@ def main(
     evaluate,
     threshold,
 ):
-    """
-    🔍 Duplicate Detection System - Simplified CLI
-
-    WORKFLOW:
-    1. --load-data: Load CSV file → company_data_raw → company_data (normalized)
-    2. --load-reference: Load reference duplicates → reference_duplicates table
-    3. --predict: Run duplicate detection → predictions + target_table + predictions_with_reference
-    4. --evaluate: Generate evaluation report and statistics
-
-    EXAMPLES:
-
-    1. Complete workflow:
-       uv run python -m dublette.app --load-data data.csv --load-reference ref.csv --predict --evaluate
-
-    2. With custom threshold for reference evaluation:
-       uv run python -m dublette.app --load-data data.csv --predict --evaluate --threshold 0.75
-
-    3. Step by step:
-       uv run python -m dublette.app --load-data data.csv
-       uv run python -m dublette.app --load-reference ref.csv
-       uv run python -m dublette.app --predict --threshold 0.75
-       uv run python -m dublette.app --evaluate --threshold 0.75
-
-    DATABASE TABLES:
-    Input: company_data_raw → company_data (normalized)
-    Reference: reference_duplicates (SATZNR_1, SATZNR_2)
-    Results: predictions, target_table, predictions_with_reference
-    """
-
     click.echo("🔍 Starting Duplicate Detection System...")
 
     # Validate input combinations
@@ -130,50 +104,38 @@ def main(
         click.echo("\n🤖 === RUNNING PREDICTION ===")
 
         # Check if we have input data
-        df_data = get_csv_input_data()
+        df_data = get_prediction_data()
         if df_data is None:
             click.echo("❌ Error: No CSV input data found. Use --load-data first.")
             return
 
-        # Check for existing predictions
-        df_predictions = get_existing_predictions()
-        if df_predictions is not None:
-            click.echo("✅ Found existing predictions in database")
-        else:
-            click.echo(f"📊 Using CSV input data: {len(df_data):,} records")
-            click.echo(f"📋 Expected comparisons (n*(n-1)/2): {len(df_data) * (len(df_data) - 1) // 2:,}")
-            click.echo("🔧 Configuring Splink for single-table deduplication...")
+        click.echo(f"📊 Using CSV input data: {len(df_data):,} records")
+        click.echo(f"📋 Expected comparisons (n*(n-1)/2): {len(df_data) * (len(df_data) - 1) // 2:,}")
+        click.echo("🔧 Configuring Splink for single-table deduplication...")
 
-            # Configure for single-table deduplication
-            con = get_connection()
-            linker = configure_splink(con=con, multi_table=False, table_name="company_data")
+        # Configure for single-table deduplication
+        con = get_connection()
+        linker = configure_splink_german(con=con, table_name="company_data")
+        from dublette.detection.splink_config import train_splink_model
 
-            # Run prediction
-            click.echo("🔍 Detecting duplicates...")
-            df_predictions = detect_duplicates(linker)
+        linker = train_splink_model(linker)
 
-            # Show prediction details
-            click.echo(f"✅ Generated {len(df_predictions):,} pairwise comparisons")
-            if len(df_predictions) > 0:
-                click.echo(
-                    f"📊 Match probability range: {df_predictions['match_probability'].min():.3f} - {df_predictions['match_probability'].max():.3f}"
-                )
-                matches_count = len(df_predictions[df_predictions["match_probability"] >= 0.8])
-                click.echo(f"🎯 Matches above Splink threshold (0.8): {matches_count:,}")
+        # Run prediction
+        click.echo("🔍 Detecting duplicates...")
+        df_predictions = predict_duplicates(linker)
 
-            # Save predictions
-            save_predictions_to_database(df_predictions)
-            click.echo("💾 Predictions saved to database")
+        # Show prediction details
+        click.echo(f"✅ Generated {len(df_predictions):,} pairwise comparisons")
+        if len(df_predictions) > 0:
+            click.echo(
+                f"📊 Match probability range: {df_predictions['match_probability'].min():.3f} - {df_predictions['match_probability'].max():.3f}"
+            )
+            matches_count = len(df_predictions[df_predictions["match_probability"] >= 0.8])
+            click.echo(f"🎯 Matches above Splink threshold (0.8): {matches_count:,}")
 
-        # Create target table (always use 0.8 for Splink model)
-        click.echo("📋 Creating target table...")
-        df_target = create_single_table_target(df_predictions, threshold=0.8)
-
-        if df_target is not None and len(df_target) > 0:
-            save_target_table_to_database(df_target)
-            click.echo(f"✅ Target table: {len(df_target):,} records")
-        else:
-            click.echo("⚠️ No target table created (no matches above threshold)")
+        # Save predictions
+        save_predictions_to_database(df_predictions)
+        click.echo("💾 Predictions saved to database")
 
         # Create predictions with reference if reference data exists (use custom threshold for evaluation)
         try:
@@ -187,7 +149,7 @@ def main(
 
         click.echo("✅ Prediction completed - all data available in database:")
         click.echo("   📊 predictions (Splink predictions)")
-        click.echo("   📋 target_table (deduplicated records)")
+
         click.echo("   🎯 predictions_with_reference (if reference data available)")
 
     # Phase 4: Evaluation
@@ -201,19 +163,15 @@ def main(
             return
 
         # Basic evaluation
-        metrics = evaluate_model(df_predictions)
-
-        basic_stats = metrics["basic_stats"]
-        prob_stats = metrics["probability_stats"]
-        quality_indicators = metrics["quality_indicators"]
+        metrics = calculate_metrics(df_predictions, threshold=threshold)
 
         click.echo("📈 MODEL EVALUATION RESULTS:")
-        click.echo(f"📊 Total comparisons: {basic_stats['total_comparisons']:,}")
-        click.echo(f"✅ Predicted matches: {basic_stats['predicted_matches']:,}")
-        click.echo(f"📈 Match rate: {basic_stats['match_rate']:.1%}")
-        click.echo(f"🎯 Average match probability: {prob_stats['mean_probability']:.3f}")
-        click.echo(f"🔥 High confidence matches: {quality_indicators['confidence_ratio']:.1%}")
-        click.echo(f"❓ Uncertain cases: {quality_indicators['uncertainty_ratio']:.1%}")
+        click.echo(f"📊 Total comparisons: {metrics['total']:,}")
+        click.echo(f"✅ Predicted matches: {metrics['predicted_matches']:,}")
+        click.echo(f"📈 Match rate: {metrics['match_rate']:.1%}")
+        click.echo(f"🎯 Average match probability: {metrics['prob_stats']['mean']:.3f}")
+        click.echo(f"🔥 High confidence matches: {metrics['confidence_ratio']:.1%}")
+        click.echo(f"❓ Uncertain cases: {metrics['uncertainty_ratio']:.1%}")
 
         # Reference comparison if available
         reference_stats = None
@@ -237,15 +195,9 @@ def main(
         except Exception as e:
             click.echo(f"ℹ️ Reference comparison skipped: {str(e)}")
 
-        # Generate report
-        report_path = generate_evaluation_report(
-            df_predictions=df_predictions,
-            threshold=threshold,
-            output_dir="output",
-            enhanced_normalization=True,
-            multi_table=False,
-            reference_stats=reference_stats,
-        )
+        # Generate Markdown report
+        report_path = os.path.join("output", "evaluation_report.md")
+        generate_markdown_report(metrics, report_path)
 
         click.echo("\n✅ Evaluation completed:")
         click.echo(f"   📄 {report_path}")
