@@ -36,7 +36,7 @@ def create_balanced_company_raw(
     return df_balanced
 
 
-def save_csv_input_data(csv_file_path, bewertung_path=None, n_dups=5000, n_nodups=5000):
+def save_csv_input_data(csv_file_path, bewertung_path=None, n_dups=5000, n_nodups=5000, enhanced_mode=False):
     """
     Save CSV input data to database with normalization.
     Wenn bewertung_path angegeben ist, wird ein balanciertes Testset erzeugt.
@@ -61,7 +61,7 @@ def save_csv_input_data(csv_file_path, bewertung_path=None, n_dups=5000, n_nodup
     con.execute("DROP TABLE IF EXISTS company_data_raw")
     con.register("temp_raw", df_raw)
     con.execute("CREATE TABLE company_data_raw AS SELECT * FROM temp_raw")
-    df_normalized = normalize_partner_data(df_raw, enhanced_mode=True)
+    df_normalized = normalize_partner_data(df_raw, enhanced_mode=enhanced_mode)
     df_normalized = df_normalized.applymap(lambda x: None if isinstance(x, str) and x.strip() == "" else x)
     con.execute("DROP TABLE IF EXISTS company_data")
     con.register("temp_norm", df_normalized)
@@ -94,7 +94,7 @@ def save_reference_duplicates_to_database(reference_file):
     return len(df_ref)
 
 
-def load_input_and_reference_data(input_path, reference_path, n_dups=5000, n_nodups=5000):
+def load_input_and_reference_data(input_path, reference_path, n_dups=5000, n_nodups=5000, enhanced_mode=False):
     """
     Lädt balanciertes Testset und Referenzpaare und speichert sie in die Datenbank.
     Args:
@@ -103,7 +103,7 @@ def load_input_and_reference_data(input_path, reference_path, n_dups=5000, n_nod
         n_dups (int, optional): Anzahl Duplikate im Testset (Default 5000)
         n_nodups (int, optional): Anzahl Nicht-Duplikate im Testset (Default 5000)
     """
-    n_records = save_csv_input_data(input_path, reference_path, n_dups=n_dups, n_nodups=n_nodups)
+    n_records = save_csv_input_data(input_path, reference_path, n_dups=n_dups, n_nodups=n_nodups, enhanced_mode=enhanced_mode)
     n_refs = save_reference_duplicates_to_database(reference_path)
     return n_records, n_refs
 

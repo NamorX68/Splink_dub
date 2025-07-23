@@ -13,6 +13,7 @@ def list_columns(table_name, db_path="output/splink_data.duckdb"):
     con.close()
     return [c[1] for c in cols]
 
+
 if __name__ == "__main__":
     tables = list_tables()
     print("Tabellen in der Datenbank:")

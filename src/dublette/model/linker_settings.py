@@ -10,13 +10,14 @@ def get_splink_settings():
     """
     comparisons = [
         cl.NameComparison("NAME").configure(term_frequency_adjustments=True),
+        cl.NameComparison("VORNAME").configure(term_frequency_adjustments=True),
     ]
     settings = {
         "link_type": "dedupe_only",
         "unique_id_column_name": "SATZNR",
         "probability_two_random_records_match": 0.005,
         "blocking_rules_to_generate_predictions": [
-            brl.block_on("NAME"),
+            
         ],
         "comparisons": comparisons,
         "retain_intermediate_calculation_columns": True,
