@@ -117,22 +117,32 @@ uv run python -m dublette.app --load-reference input/bewertung.csv
 
 
 ### Erledigte Aufgaben (nicht in ursprünglicher ToDo-Liste)
-- [x] Evaluation direkt in DuckDB mit prediction_reference-Tabelle und Schwellenwert-Logik
-- [x] Ergebnisse für verschiedene Thresholds als Schleife in app.py
-- [x] Timestamp für jeden Evaluationslauf in die Datenbank und Reports integriert
-- [x] Markdown-Report automatisch um alle Schwellenwert-Auswertungen erweitert
-- [x] Doppelte Funktionsdefinitionen entfernt und Code konsolidiert
+    - [x] Evaluation direkt in DuckDB mit prediction_reference-Tabelle und Schwellenwert-Logik
+    - [x] Ergebnisse für verschiedene Thresholds als Schleife in app.py
+    - [x] Timestamp für jeden Evaluationslauf in die Datenbank und Reports integriert
+    - [x] Markdown-Report automatisch um alle Schwellenwert-Auswertungen erweitert
+    - [x] Doppelte Funktionsdefinitionen entfernt und Code konsolidiert
+    - [x] Fehler "Binder Error: table prediction_evaluation has 7 columns but 9 values were supplied" analysiert und Lösung dokumentiert
+    - [x] Hilfsskript check_db.py um Drop-, List- und Columns-Funktion erweitert
+    - [x] check_db.py auf Click-CLI umgestellt (Kommandos: list, columns, drop)
+    - [x] CLI-Workflows und Hilfsskripte dokumentiert
+    - [x] Troubleshooting für prediction_evaluation Tabelle ergänzt
 
 
 ## 📅 Letzte Arbeiten (Changelog)
 
-- 2025-07-23: 
+- 2025-07-23:
     - README modularisiert, CLI-Workflows aktualisiert, neue Abschnitte hinzugefügt
     - Blocking Rules, Schwellenwert-Logik und Evaluation vollständig implementiert und dokumentiert
     - prediction_reference und prediction_evaluation Tabellen mit Timestamp und Threshold
     - Automatische Schwellenwert-Schleife in app.py
     - Doppelte Funktionsdefinitionen entfernt
     - Markdown-Report um Schwellenwert-Auswertungen erweitert
+    - Fehler "Binder Error: table prediction_evaluation has 7 columns but 9 values were supplied" analysiert und Lösung dokumentiert
+    - Hilfsskript check_db.py um Drop-, List- und Columns-Funktion erweitert
+    - check_db.py auf Click-CLI umgestellt (Kommandos: list, columns, drop)
+    - CLI-Workflows und Hilfsskripte dokumentiert
+    - Troubleshooting für prediction_evaluation Tabelle ergänzt
 - 2025-07-22: Modularisierung der CLI, Trennung von Training und Prediction
 - 2025-07-21: Markdown-Reporting verbessert, Evaluation in Datenbank ausgelagert
 
