@@ -2,6 +2,7 @@
 Handles all logic for input data (CSV import, normalization, retrieval) and reference duplicate data (import, storage).
 """
 import pandas as pd
+import duckdb
 from dublette.database.connection import get_connection
 from dublette.data.normalization import normalize_partner_data
 
@@ -10,29 +11,38 @@ def create_balanced_company_raw(
     testdata_path: str,
     bewertung_path: str,
     n_dups: int = 5000,
-    n_nodups: int = 5000,
+    n_nodups: int = 10000,
 ):
     """
     Erzeugt ein balanciertes Testset aus partnerdaten.csv und bewertung.csv und gibt das DataFrame zurück.
     """
-    # Lade alle Duplikatpaare
-    df_bew = pd.read_csv(bewertung_path, sep=";")
-    satznr_dups = pd.unique(df_bew[["SATZNR_1", "SATZNR_2"]].values.ravel())
-
-    # Lade Testdaten
-    df_all = pd.read_csv(testdata_path, sep=";")
-
-    # Duplikatkandidaten
-    df_dups = df_all[df_all["SATZNR"].isin(satznr_dups)]
-    # Nicht-Duplikate
-    df_nodups = df_all[~df_all["SATZNR"].isin(satznr_dups)]
-
-    # Ziehe Stichproben
-    df_dups_sample = df_dups.sample(n=min(n_dups, len(df_dups)), random_state=42)
-    df_nodups_sample = df_nodups.sample(n=min(n_nodups, len(df_nodups)), random_state=42)
-
-    # Kombiniere und mische
-    df_balanced = pd.concat([df_dups_sample, df_nodups_sample]).sample(frac=1, random_state=42).reset_index(drop=True)
+    con = get_connection()
+    # Hilfsfunktion zum Droppen von Tabellen
+    drop_tables = lambda con, tables: [con.execute(f"DROP TABLE IF EXISTS {tbl}") for tbl in tables]
+    # Droppe alle temporären Tabellen am Anfang
+    drop_tables(con, [
+        "temp_bewertung",
+        "temp_bewertung_sample",
+        "temp_satznr_dups",
+        "temp_partnerdaten",
+        "temp_balanced"
+    ])
+    # Erzeugung
+    con.execute(f"CREATE TABLE temp_bewertung AS SELECT * FROM read_csv_auto('{bewertung_path}', sep=';')")
+    con.execute(f"CREATE TABLE temp_bewertung_sample AS SELECT * FROM temp_bewertung USING SAMPLE {n_dups} ROWS")
+    con.execute("CREATE OR REPLACE TABLE temp_satznr_dups AS SELECT SATZNR_1 AS SATZNR FROM temp_bewertung_sample UNION SELECT SATZNR_2 AS SATZNR FROM temp_bewertung_sample")
+    con.execute(f"CREATE TABLE temp_partnerdaten AS SELECT * FROM read_csv_auto('{testdata_path}', sep=';')")
+    con.execute(f"CREATE TABLE temp_balanced AS SELECT * FROM temp_partnerdaten WHERE SATZNR IN (SELECT SATZNR FROM temp_satznr_dups) UNION ALL SELECT * FROM temp_partnerdaten WHERE SATZNR NOT IN (SELECT SATZNR FROM temp_satznr_dups) USING SAMPLE {n_nodups} ROWS")
+    df_balanced = con.execute("SELECT * FROM temp_balanced ORDER BY RANDOM()").df()
+    # Droppe alle temporären Tabellen nach DataFrame-Erstellung
+    drop_tables(con, [
+        "temp_bewertung",
+        "temp_bewertung_sample",
+        "temp_satznr_dups",
+        "temp_partnerdaten",
+        "temp_balanced"
+    ])
+    con.close()
     return df_balanced
 
 

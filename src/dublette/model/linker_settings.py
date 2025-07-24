@@ -11,13 +11,22 @@ def get_splink_settings():
     comparisons = [
         cl.NameComparison("NAME").configure(term_frequency_adjustments=True),
         cl.NameComparison("VORNAME").configure(term_frequency_adjustments=True),
+        cl.ExactMatch("POSTLEITZAHL"),
+        cl.ExactMatch("ORT"),
+        cl.ExactMatch("GEBURTSDATUM"),
+        cl.LevenshteinAtThresholds("ADRESSZEILE", [1, 2])
     ]
     settings = {
         "link_type": "dedupe_only",
         "unique_id_column_name": "SATZNR",
         "probability_two_random_records_match": 0.005,
         "blocking_rules_to_generate_predictions": [
-            
+            brl.block_on("NAME", "GEBURTSDATUM"),
+            brl.block_on("VORNAME", "GEBURTSDATUM"),
+            brl.block_on("POSTLEITZAHL", "ORT"),
+            brl.block_on("POSTLEITZAHL", "ADRESSZEILE"),
+            # brl.block_on("GEBURTSDATUM"),
+            # brl.block_on("ADRESSZEILE"),
         ],
         "comparisons": comparisons,
         "retain_intermediate_calculation_columns": True,

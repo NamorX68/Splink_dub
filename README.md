@@ -93,27 +93,35 @@ uv run python -m dublette.app --load-reference input/bewertung.csv
 - Schrittweise Erweiterung und Testen neuer Blocking Rules:
   - [x] NAME
   - [x] VORNAME
-  - [ ] NAME+VORNAME
-  - [ ] PLZ
-  - [ ] PLZ+ORT
-  - [ ] Phonetische Varianten (Soundex, Metaphone)
-- [ ] Analyse der Vergleichsanzahl und Qualität je Blocking Rule
-- [ ] Automatisierte Bewertung und Report-Generierung für jede Blocking Rule
+  - [x] NAME+VORNAME (implementiert und getestet)
+  - [x] PLZ (implementiert und getestet)
+  - [x] PLZ+ORT (implementiert und getestet)
+  - [x] Phonetische Varianten (Soundex, Metaphone) (Basis integriert, weitere Varianten möglich)
+  - [x] Analyse der Vergleichsanzahl und Qualität je Blocking Rule (Report und Visualisierung automatisiert)
+  - [x] Automatisierte Bewertung und Report-Generierung für jede Blocking Rule (Markdown-Report und Schwellenwert-Schleife)
+  - [ ] Erweiterte phonetische Blocking Rules (z.B. Metaphone, Double Metaphone, Custom)
 
 
 ### Training & Modell
-- [x] Optimierung der Trainingslogik (z.B. Parameterwahl, Feature-Auswahl)
-- [x] Vergleich verschiedener Trainingsdaten (balanciert/unbalanciert)
-- [x] Threshold-Optimierung und Sensitivitätsanalyse
-- [x] Logging und Monitoring der Trainingsläufe
-- [ ] Automatisierte Tests für Trainings-Workflow
+  - [x] Optimierung der Trainingslogik (Parameterwahl, Feature-Auswahl, Vergleichslogik)
+  - [x] Vergleich verschiedener Trainingsdaten (balanciert/unbalanciert, Sampling-Logik in DuckDB)
+  - [x] Threshold-Optimierung und Sensitivitätsanalyse (Schwellenwert-Schleife, Report)
+  - [x] Logging und Monitoring der Trainingsläufe (Timestamp, Report, Datenbank)
+  - [x] Automatisierte Tests für Trainings-Workflow (Basis-Tests integriert)
+  - [ ] Erweiterte Tests für Edge Cases und große Datenmengen
+  - [ ] Automatisierte Hyperparameter-Optimierung (Grid Search, Bayesian)
 
 
 ### Weitere Aufgaben
-- [x] Erweiterte Evaluation/Reporting (z.B. weitere Metriken, Visualisierungen)
-- [x] CLI-Parameter für Normalisierung und Thresholds
-- [ ] Automatisierte Tests für alle Workflows
-- [ ] Dokumentation weiter ausbauen (z.B. Beispiele, Troubleshooting)
+  - [x] Erweiterte Evaluation/Reporting (weitere Metriken, Visualisierungen, Schwellenwert-Schleife, Markdown-Report)
+  - [x] CLI-Parameter für Normalisierung und Thresholds (Standard/Enhanced, Schwellenwert als Parameter)
+  - [x] Automatisierte Tests für alle Workflows (Basis-Tests für Datenbank, CLI, Report)
+  - [x] Dokumentation weiter ausgebaut (Beispiele, Troubleshooting, CLI-Workflows, Fehleranalyse)
+  - [x] Robustere Fehlerbehandlung und Logging in allen Modulen
+  - [x] Hilfsskript check_db.py erweitert und dokumentiert
+  - [ ] Erweiterte Troubleshooting- und FAQ-Sektion
+  - [ ] Automatisierte End-to-End-Tests (Integration aller Workflows)
+  - [ ] Beispiel-Datensätze und Testfälle für neue Blocking Rules
 
 
 ### Erledigte Aufgaben (nicht in ursprünglicher ToDo-Liste)
@@ -127,6 +135,13 @@ uv run python -m dublette.app --load-reference input/bewertung.csv
     - [x] check_db.py auf Click-CLI umgestellt (Kommandos: list, columns, drop)
     - [x] CLI-Workflows und Hilfsskripte dokumentiert
     - [x] Troubleshooting für prediction_evaluation Tabelle ergänzt
+    - [x] Sampling-Seed entfernt und DuckDB-SQL kompatibel gemacht
+    - [x] Referenzpaare auf SATZNR_1/SATZNR_2 umgestellt
+    - [x] Automatische Bereinigung und robustes Table-Drop in DuckDB
+    - [x] Visualisierungen und Reports für alle Blocking Rules integriert
+    - [x] CLI-Parameter für Enhanced-Normalisierung und Schwellenwert
+    - [x] Modularisierung und Konsolidierung der Datenverarbeitung
+    - [x] Fehleranalyse und Troubleshooting für alle Workflows ergänzt
 
 
 ## 📅 Letzte Arbeiten (Changelog)

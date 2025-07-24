@@ -165,7 +165,7 @@ def main(
             blocking_rules = settings["blocking_rules_to_generate_predictions"]
 
             # Splink-Modell trainieren
-            train_splink_model(linker, blocking_rules)
+            train_splink_model(linker, blocking_rules, max_pairs=50000)
 
             # 1. Blocking Rule Stats (jetzt mit DataFrame, nicht Linker)
             df_analysis = get_prediction_data()
@@ -184,7 +184,7 @@ def main(
             cumulative_comparisons_chart(df_analysis, blocking_rules_for_analysis)
 
             # 3. Custom Column Profile Chart (Beispiel)
-            custom_column_profile(df_analysis, ["NAME", "VORNAME"])
+            custom_column_profile(df_analysis, ["NAME", "VORNAME", "ADRESSZEILE", "POSTLEITZAHL", "ORT"])
 
             # 4. Vergleichs-/Modellparameter Details
             print("\nVergleichs- und Modellparameter (Ausschnitt):")
@@ -210,7 +210,7 @@ def main(
             run_timestamp = datetime.datetime.now().isoformat()
 
             # Evaluation für verschiedene Thresholds
-            thresholds = [round(x, 2) for x in [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]]
+            thresholds = [round(x, 4) for x in [0.999, 0.9995, 0.9997, 0.9999]]
             for t in thresholds:
                 eval_result = evaluate_prediction_vs_reference(OUTPUT_DUCKDB_PATH, threshold=t, run_timestamp=run_timestamp)
                 section_title = f"Evaluation der Vorhersage gegen Referenzdaten (Threshold={t})"
