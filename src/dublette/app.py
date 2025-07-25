@@ -165,7 +165,7 @@ def main(
             blocking_rules = settings["blocking_rules_to_generate_predictions"]
 
             # Splink-Modell trainieren
-            train_splink_model(linker, blocking_rules, max_pairs=50000)
+            train_splink_model(linker, blocking_rules, max_pairs=5000)
 
             # 1. Blocking Rule Stats (jetzt mit DataFrame, nicht Linker)
             df_analysis = get_prediction_data()
@@ -210,7 +210,7 @@ def main(
             run_timestamp = datetime.datetime.now().isoformat()
 
             # Evaluation für verschiedene Thresholds
-            thresholds = [round(x, 4) for x in [0.999, 0.9995, 0.9997, 0.9999]]
+            thresholds = [round(x, 4) for x in [0.95, 0.96, 0.97, 0.98, 0.9999]]
             for t in thresholds:
                 eval_result = evaluate_prediction_vs_reference(OUTPUT_DUCKDB_PATH, threshold=t, run_timestamp=run_timestamp)
                 section_title = f"Evaluation der Vorhersage gegen Referenzdaten (Threshold={t})"

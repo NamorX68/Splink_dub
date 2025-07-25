@@ -1,5 +1,6 @@
 
 from splink import DuckDBAPI, Linker
+from splink import comparison_level_library as cll
 from splink.internals import comparison_library as cl
 from splink.internals import blocking_rule_library as brl
 
@@ -9,24 +10,31 @@ def get_splink_settings():
     Gibt die Splink-Settings für einen minimalen Start zurück (nur NAME).
     """
     comparisons = [
+        # cl.ExactMatch("NAME"),
+        # cl.ExactMatch("VORNAME"),
         cl.NameComparison("NAME").configure(term_frequency_adjustments=True),
         cl.NameComparison("VORNAME").configure(term_frequency_adjustments=True),
-        cl.ExactMatch("POSTLEITZAHL"),
-        cl.ExactMatch("ORT"),
         cl.ExactMatch("GEBURTSDATUM"),
-        cl.LevenshteinAtThresholds("ADRESSZEILE", [1, 2])
+        {
+            "output_column_name": "ADRESSZEILE",
+            "comparison_levels": [
+                cll.NullLevel("ADRESSZEILE"),
+                cll.LevenshteinLevel("ADRESSZEILE", 1),
+                cll.LevenshteinLevel("ADRESSZEILE", 2),
+                cll.ElseLevel(),
+            ]
+        },
+        cl.ExactMatch("POSTLEITZAHL"),
+        cl.LevenshteinAtThresholds("ORT", distance_threshold_or_thresholds=[1, 2]),
     ]
     settings = {
         "link_type": "dedupe_only",
         "unique_id_column_name": "SATZNR",
         "probability_two_random_records_match": 0.005,
         "blocking_rules_to_generate_predictions": [
-            brl.block_on("NAME", "GEBURTSDATUM"),
-            brl.block_on("VORNAME", "GEBURTSDATUM"),
-            brl.block_on("POSTLEITZAHL", "ORT"),
-            brl.block_on("POSTLEITZAHL", "ADRESSZEILE"),
-            # brl.block_on("GEBURTSDATUM"),
-            # brl.block_on("ADRESSZEILE"),
+            brl.block_on("NAME", "VORNAME", "GEBURTSDATUM"),
+            brl.block_on("NAME", "VORNAME", "POSTLEITZAHL"),
+            brl.block_on("NAME", "VORNAME", "ADRESSZEILE"),
         ],
         "comparisons": comparisons,
         "retain_intermediate_calculation_columns": True,

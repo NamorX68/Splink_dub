@@ -530,7 +530,7 @@ def normalize_city_enhanced(city: str, fuzzy_matching: bool = False) -> str:
                     best_match = ref_city
 
             if best_match:
-                print(f"    Fuzzy-Match: '{city}' -> '{best_match}' (Score: {best_score:.2f})")
+                # print(f"    Fuzzy-Match: '{city}' -> '{best_match}' (Score: {best_score:.2f})")
                 return best_match
 
         except ImportError:

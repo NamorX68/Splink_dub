@@ -1,4 +1,3 @@
-
 from splink import Linker
 from splink.internals import blocking_rule_library as brl
 from dublette.database.connection import get_connection
@@ -29,11 +28,10 @@ def run_splink_predict(linker, connection, output_table="predicted_duplicates"):
     Führt die Dubletten-Vorhersage mit einem bestehenden Splink-Linker durch und speichert die Ergebnisse als Tabelle in DuckDB.
     Gibt das Ergebnis-DataFrame zurück.
     """
-    predictions = linker.inference.predict()
+    predictions = linker.inference.predict(threshold_match_probability=0.95)  # Beispiel-Threshold, kann angepasst werden
     df_pred = predictions.as_pandas_dataframe()
     # DataFrame als temporäre View registrieren und als Tabelle speichern
-    duckdb.register('df_pred', df_pred)
+    connection.register('df_pred', df_pred)
     connection.execute(f"CREATE OR REPLACE TABLE {output_table} AS SELECT * FROM df_pred")
-    duckdb.unregister('df_pred')
     return df_pred
 

@@ -12,7 +12,8 @@ dependencies = [
     "seaborn",
     "click",
     "jellyfish>=1.2.0",
-    "vl-convert-python"
+    "vl-convert-python",
+    "pyarrow",
 ]
 
 [project.optional-dependencies]
