@@ -23,7 +23,8 @@ from dublette.evaluation.estimating_model_parameter import (
     cumulative_comparisons_chart,
     custom_column_profile,
     write_markdown_report,
-    evaluate_prediction_vs_reference,
+    create_prediction_reference_table,
+    evaluate_prediction_metrics,
     append_to_markdown_report,
 )
 from dublette.model.train_predict import run_splink_predict, train_splink_model
@@ -209,10 +210,14 @@ def main(
             # Timestamp für diesen Durchlauf erzeugen
             run_timestamp = datetime.datetime.now().isoformat()
 
+            # prediction_reference einmalig anlegen mit erstem Threshold (z.B. kleinstem Wert der Schleife)
+            from dublette.evaluation.estimating_model_parameter import create_prediction_reference_table, evaluate_prediction_metrics
+            thresholds = [round(x, 5) for x in [0.9995, 0.9996, 0.9997, 0.9998, 0.99995, 0.99997]]
+            create_prediction_reference_table(OUTPUT_DUCKDB_PATH, threshold=thresholds[0])
+
             # Evaluation für verschiedene Thresholds
-            thresholds = [round(x, 4) for x in [0.95, 0.96, 0.97, 0.98, 0.9999]]
             for t in thresholds:
-                eval_result = evaluate_prediction_vs_reference(OUTPUT_DUCKDB_PATH, threshold=t, run_timestamp=run_timestamp)
+                eval_result = evaluate_prediction_metrics(OUTPUT_DUCKDB_PATH, threshold=t, run_timestamp=run_timestamp)
                 section_title = f"Evaluation der Vorhersage gegen Referenzdaten (Threshold={t})"
                 append_to_markdown_report(eval_result, output_path=OUTPUT_MARKDOWN_PATH, section_title=section_title)
                 click.echo(f"📄 Evaluationsergebnis für Threshold={t} wurde ans Markdown-Report angehängt.")

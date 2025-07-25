@@ -32,9 +32,9 @@ def get_splink_settings():
         "unique_id_column_name": "SATZNR",
         "probability_two_random_records_match": 0.005,
         "blocking_rules_to_generate_predictions": [
-            brl.block_on("NAME", "VORNAME", "GEBURTSDATUM"),
-            brl.block_on("NAME", "VORNAME", "POSTLEITZAHL"),
-            brl.block_on("NAME", "VORNAME", "ADRESSZEILE"),
+            brl.block_on("NAME", "VORNAME", "GEBURTSDATUM", "POSTLEITZAHL"),
+            brl.block_on("NAME", "VORNAME", "POSTLEITZAHL", "ADRESSZEILE"),
+            brl.block_on("NAME", "VORNAME", "ORT", "ADRESSZEILE"),
         ],
         "comparisons": comparisons,
         "retain_intermediate_calculation_columns": True,

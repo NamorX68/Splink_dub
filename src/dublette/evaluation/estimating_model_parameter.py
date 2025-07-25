@@ -12,47 +12,59 @@ from splink.exploratory import profile_columns
 
 
 
-def evaluate_prediction_vs_reference(db_path, pred_table="predicted_duplicates", ref_table="reference_duplicates", threshold=0.5, run_timestamp=None):
+
+def create_prediction_reference_table(db_path, pred_table="predicted_duplicates", ref_table="reference_duplicates", threshold=0.5):
     """
-    Erstellt die Tabelle prediction_reference mit Schwellenwert- und Label-Logik und berechnet alle Auswertungen direkt darauf.
-    threshold: Schwellenwert für Dublette (float, default=0.5)
-    Gibt die Ergebnisse als Dict zurück und speichert sie als Tabelle 'prediction_evaluation'.
+    Legt die Tabelle prediction_reference mit initialem Threshold an und befüllt sie.
     """
     con = duckdb.connect(db_path)
-    # prediction_reference: Enthält alle relevanten Felder, Score, Label und Referenz-Label
     con.execute(f"""
         CREATE OR REPLACE TABLE prediction_reference AS
         SELECT
             p.SATZNR_l AS id1,
             p.SATZNR_r AS id2,
             p.match_probability,
-            CASE WHEN p.match_probability >= {threshold} THEN 1 ELSE 0 END AS pred_label,
             CASE WHEN r.id1 IS NOT NULL AND r.id2 IS NOT NULL THEN 1 ELSE 0 END AS ref_label
         FROM {pred_table} p
         LEFT JOIN {ref_table} r
         ON p.SATZNR_l = r.id1 AND p.SATZNR_r = r.id2
     """)
-    # Confusion Matrix
-    sql_conf_matrix = """
+    con.close()
+
+def evaluate_prediction_metrics(db_path, threshold=0.5, run_timestamp=None):
+    """
+    Berechnet die Metriken (Confusion Matrix, Precision, Recall, F1) für die vorhandene prediction_reference-Tabelle mit neuem Threshold.
+    Fügt die Ergebnisse in prediction_evaluation ein und gibt sie als Dict zurück.
+    """
+    con = duckdb.connect(db_path)
+    # Confusion Matrix und Metriken direkt per SQL
+    sql_conf_matrix = f"""
         SELECT
-            pred_label,
+            CASE WHEN match_probability >= {threshold} THEN 1 ELSE 0 END AS pred_label,
             ref_label,
             COUNT(*) AS count
         FROM prediction_reference
         GROUP BY pred_label, ref_label
     """
-    conf_matrix = con.execute(sql_conf_matrix).fetchdf()
-    # Metriken berechnen (numerisch)
-    sql_metrics = """
+    # Confusion Matrix als Markdown-Tabelle
+    conf_matrix_rows = con.execute(sql_conf_matrix).fetchall()
+    conf_matrix_header = '| pred_label | ref_label | count |\n|---|---|---|'
+    conf_matrix_table = [conf_matrix_header]
+    for row in conf_matrix_rows:
+        conf_matrix_table.append(f'| {row[0]} | {row[1]} | {row[2]} |')
+    conf_matrix_md = '\n'.join(conf_matrix_table)
+    # Metriken direkt per SQL
+    sql_metrics = f"""
         SELECT
             SUM(CASE WHEN pred_label = 1 AND ref_label = 1 THEN 1 ELSE 0 END) AS tp,
             SUM(CASE WHEN pred_label = 1 AND ref_label = 0 THEN 1 ELSE 0 END) AS fp,
             SUM(CASE WHEN pred_label = 0 AND ref_label = 1 THEN 1 ELSE 0 END) AS fn,
             SUM(CASE WHEN pred_label = 0 AND ref_label = 0 THEN 1 ELSE 0 END) AS tn
-        FROM prediction_reference
+        FROM (
+            SELECT CASE WHEN match_probability >= {threshold} THEN 1 ELSE 0 END AS pred_label, ref_label FROM prediction_reference
+        )
     """
-    m = con.execute(sql_metrics).fetchone()
-    tp, fp, fn, tn = m
+    tp, fp, fn, tn = con.execute(sql_metrics).fetchone()
     precision = tp / (tp + fp) if (tp + fp) else 0
     recall = tp / (tp + fn) if (tp + fn) else 0
     f1 = 2 * precision * recall / (precision + recall) if (precision + recall) else 0
@@ -84,6 +96,7 @@ def evaluate_prediction_vs_reference(db_path, pred_table="predicted_duplicates",
             {f1}
         );
     """)
+    con.close()
     return {
         "true_positives": tp,
         "false_positives": fp,
@@ -92,7 +105,7 @@ def evaluate_prediction_vs_reference(db_path, pred_table="predicted_duplicates",
         "precision": precision,
         "recall": recall,
         "f1_score": f1,
-        "confusion_matrix": conf_matrix.to_dict(orient="records")
+        "confusion_matrix": conf_matrix_md
     }
 
 
