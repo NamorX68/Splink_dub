@@ -117,25 +117,20 @@ def main(
         click.echo("\n📁 === LOADING INPUT AND REFERENCE DATA ===")
         if not (file_exists(load_data, "Input") and file_exists(load_reference, "Reference")):
             return
-        n_records, n_refs = load_input_and_reference_data(
+        n_balanced, n_refs = load_input_and_reference_data(
             load_data,
             load_reference,
             n_dups=n_dups,
             n_nodups=n_nodups,
             enhanced_mode=enhanced_normalization,
         )
-        click.echo(f"✅ Loaded and saved CSV data: {n_records:,} records")
+        click.echo(f"✅ Loaded and saved balanced company_data: {n_balanced:,} records")
         click.echo(f"✅ Loaded reference data: {n_refs:,} pairs")
     elif load_data:
         click.echo("\n📁 === LOADING CSV INPUT DATA ===")
         if not file_exists(load_data, "Input"):
             return
-        count = save_csv_input_data(
-            load_data,
-            n_dups=n_dups,
-            n_nodups=n_nodups,
-            enhanced_mode=enhanced_normalization,
-        )
+        count = save_csv_input_data(load_data)
         click.echo(f"✅ Loaded and saved CSV data: {count:,} records")
     elif load_reference:
         click.echo("\n🎯 === LOADING REFERENCE DATA ===")
@@ -143,7 +138,6 @@ def main(
             return
         count = save_reference_duplicates_to_database(load_reference)
         click.echo(f"✅ Loaded reference data: {count:,} pairs")
-
 
     if explore:
         click.echo("\n🔍 === EXPLORING DATA AND CONFIGURATIONS ===")
@@ -202,18 +196,18 @@ def main(
             if linker is None:
                 connection = get_connection()
                 linker = create_duckdb_linker(table_name="company_data", connection=connection)
+            
+            thresholds = [round(x, 7) for x in [0.999995, 0.999996, 0.999997, 0.999998, 0.999999, 0.9999995]]
+            
             click.echo("🔮 Starte Dubletten-Vorhersage mit Splink...")
             connection = get_connection()
-            df_pred = run_splink_predict(linker, connection)
+            df_pred = run_splink_predict(linker, connection, threshold_match_probability=thresholds[0])
             click.echo(f"✅ Vorhersage abgeschlossen. {len(df_pred)} Dubletten gespeichert in Tabelle 'predicted_duplicates'.")
 
             # Timestamp für diesen Durchlauf erzeugen
             run_timestamp = datetime.datetime.now().isoformat()
 
-            # prediction_reference einmalig anlegen mit erstem Threshold (z.B. kleinstem Wert der Schleife)
-            from dublette.evaluation.estimating_model_parameter import create_prediction_reference_table, evaluate_prediction_metrics
-            thresholds = [round(x, 5) for x in [0.9995, 0.9996, 0.9997, 0.9998, 0.99995, 0.99997]]
-            create_prediction_reference_table(OUTPUT_DUCKDB_PATH, threshold=thresholds[0])
+            create_prediction_reference_table(OUTPUT_DUCKDB_PATH)
 
             # Evaluation für verschiedene Thresholds
             for t in thresholds:

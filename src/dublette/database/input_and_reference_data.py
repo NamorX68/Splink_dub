@@ -7,115 +7,125 @@ from dublette.database.connection import get_connection
 from dublette.data.normalization import normalize_partner_data
 
 
-def create_balanced_company_raw(
+def create_balanced_company_data(
     testdata_path: str,
     bewertung_path: str,
     n_dups: int = 5000,
     n_nodups: int = 10000,
+    enhanced_mode=False,
 ):
     """
-    Erzeugt ein balanciertes Testset aus partnerdaten.csv und bewertung.csv und gibt das DataFrame zurück.
+    Erstellt ein balanciertes Testset aus company_data_raw und reference_duplicates.
+    - Zieht n_dups Paare aus reference_duplicates (jeweils id1/id2 als Positivsätze)
+    - Zieht n_nodups Sätze aus company_data_raw, die nicht in reference_duplicates vorkommen (Negativsätze)
+    - Normalisiert die Daten und speichert sie als company_data
+    Args:
+        testdata_path (str): Pfad zu partnerdaten.csv (wird nicht mehr direkt verwendet, company_data_raw muss existieren)
+        bewertung_path (str): Pfad zu bewertung.csv (wird nicht mehr direkt verwendet, reference_duplicates muss existieren)
+        n_dups (int): Anzahl Duplikat-Paare
+        n_nodups (int): Anzahl Nicht-Duplikate
+        enhanced_mode (bool): Erweiterte Normalisierung
+    Returns:
+        int: Anzahl der Datensätze im balancierten Testset
     """
     con = get_connection()
-    # Hilfsfunktion zum Droppen von Tabellen
+    # Alle temporären Tabellen zu Beginn droppen
+    temp_tables = ["temp_ref_sample", "temp_pos_ids", "temp_positives", "temp_negatives", "temp_balanced", "temp_negatives_sample"]
     drop_tables = lambda con, tables: [con.execute(f"DROP TABLE IF EXISTS {tbl}") for tbl in tables]
-    # Droppe alle temporären Tabellen am Anfang
-    drop_tables(con, [
-        "temp_bewertung",
-        "temp_bewertung_sample",
-        "temp_satznr_dups",
-        "temp_partnerdaten",
-        "temp_balanced"
-    ])
-    # Erzeugung
-    con.execute(f"CREATE TABLE temp_bewertung AS SELECT * FROM read_csv_auto('{bewertung_path}', sep=';')")
-    con.execute(f"CREATE TABLE temp_bewertung_sample AS SELECT * FROM temp_bewertung USING SAMPLE {n_dups} ROWS")
-    con.execute("CREATE OR REPLACE TABLE temp_satznr_dups AS SELECT SATZNR_1 AS SATZNR FROM temp_bewertung_sample UNION SELECT SATZNR_2 AS SATZNR FROM temp_bewertung_sample")
-    con.execute(f"CREATE TABLE temp_partnerdaten AS SELECT * FROM read_csv_auto('{testdata_path}', sep=';')")
-    con.execute(f"CREATE TABLE temp_balanced AS SELECT * FROM temp_partnerdaten WHERE SATZNR IN (SELECT SATZNR FROM temp_satznr_dups) UNION ALL SELECT * FROM temp_partnerdaten WHERE SATZNR NOT IN (SELECT SATZNR FROM temp_satznr_dups) USING SAMPLE {n_nodups} ROWS")
+    drop_tables(con, temp_tables)
+
+    # Ziehe n_dups Paare aus reference_duplicates
+    con.execute(f"CREATE TABLE temp_ref_sample AS SELECT * FROM reference_duplicates USING SAMPLE {n_dups} ROWS")
+    # Erstelle Liste aller Satznummern (id1 und id2)
+    con.execute("CREATE TABLE temp_pos_ids AS SELECT id1 AS SATZNR FROM temp_ref_sample UNION ALL SELECT id2 AS SATZNR FROM temp_ref_sample")
+    # Hole alle Zeilen aus company_data_raw, deren SATZNR in temp_pos_ids ist (Positivsätze)
+    con.execute("CREATE TABLE temp_positives AS SELECT * FROM company_data_raw WHERE SATZNR IN (SELECT SATZNR FROM temp_pos_ids)")
+    # Hole n_nodups Zeilen aus company_data_raw, die nicht in den Referenzpaaren und nicht in temp_pos_ids sind (maximale Sicherheit für Negativsätze)
+      
+    # Schritt 1: Alle Negativsätze bestimmen
+    con.execute(f"""
+        CREATE TABLE temp_negatives AS
+        SELECT * FROM company_data_raw
+        WHERE SATZNR NOT IN (SELECT id1 FROM reference_duplicates)
+          AND SATZNR NOT IN (SELECT id2 FROM reference_duplicates)
+    """)
+
+    # Schritt 2: Sample aus den Negativsätzen ziehen
+    # DuckDB USING SAMPLE ist nicht deterministisch, daher alternativ: nimm die ersten n_nodups Zeilen
+    con.execute(f"""
+        CREATE TABLE temp_negatives_sample AS
+        SELECT * FROM temp_negatives ORDER BY SATZNR LIMIT {n_nodups}
+    """)
+
+    # Verbinde Positiv- und Negativsätze
+    con.execute("CREATE TABLE temp_balanced AS SELECT * FROM temp_positives UNION ALL SELECT * FROM temp_negatives_sample")
+    # Hole die Daten als DataFrame
     df_balanced = con.execute("SELECT * FROM temp_balanced ORDER BY RANDOM()").df()
-    # Droppe alle temporären Tabellen nach DataFrame-Erstellung
-    drop_tables(con, [
-        "temp_bewertung",
-        "temp_bewertung_sample",
-        "temp_satznr_dups",
-        "temp_partnerdaten",
-        "temp_balanced"
-    ])
+    # Normalisiere die Daten
+    df_balanced = df_balanced.applymap(lambda x: None if isinstance(x, str) and x.strip() == "" else x)
+    df_normalized = normalize_partner_data(df_balanced, enhanced_mode=enhanced_mode)
+    df_normalized = df_normalized.applymap(lambda x: None if isinstance(x, str) and x.strip() == "" else x)
+    # Speichere als company_data
+    con.execute("DROP TABLE IF EXISTS company_data")
+    con.register("temp_norm", df_normalized)
+    con.execute("CREATE TABLE company_data AS SELECT DISTINCT * FROM temp_norm")
+    # Am Ende temporäre Tabellen droppen
+    drop_tables(con, temp_tables)
     con.close()
-    return df_balanced
+    return len(df_balanced)
 
 
 def save_csv_input_data(csv_file_path, bewertung_path=None, n_dups=5000, n_nodups=5000, enhanced_mode=False):
     """
-    Save CSV input data to database with normalization.
-    Wenn bewertung_path angegeben ist, wird ein balanciertes Testset erzeugt.
-    Tables created:
-    - company_data_raw (original CSV data)
-    - company_data (normalized data)
+    Liest die Input-CSV und speichert sie als company_data_raw in die Datenbank.
     Args:
         csv_file_path (str): Pfad zur Input-CSV
-        bewertung_path (str, optional): Pfad zu bewertung.csv
-        n_dups (int, optional): Anzahl Duplikate im Testset (Default 5000)
-        n_nodups (int, optional): Anzahl Nicht-Duplikate im Testset (Default 5000)
     Returns:
-        int: Number of records saved
+        int: Anzahl der Datensätze in company_data_raw
     """
     con = get_connection()
-    if bewertung_path is not None:
-        df_raw = create_balanced_company_raw(csv_file_path, bewertung_path, n_dups=n_dups, n_nodups=n_nodups)
-    else:
-        df_raw = pd.read_csv(csv_file_path, sep=";")
-    # Alle Strings trimmen und leere Strings zu None (NaN) machen
-    df_raw = df_raw.applymap(lambda x: None if isinstance(x, str) and x.strip() == "" else x)
     con.execute("DROP TABLE IF EXISTS company_data_raw")
-    con.register("temp_raw", df_raw)
-    con.execute("CREATE TABLE company_data_raw AS SELECT * FROM temp_raw")
-    df_normalized = normalize_partner_data(df_raw, enhanced_mode=enhanced_mode)
-    df_normalized = df_normalized.applymap(lambda x: None if isinstance(x, str) and x.strip() == "" else x)
-    con.execute("DROP TABLE IF EXISTS company_data")
-    con.register("temp_norm", df_normalized)
-    con.execute("CREATE TABLE company_data AS SELECT * FROM temp_norm")
+    con.execute(f"CREATE TABLE company_data_raw AS SELECT * FROM read_csv_auto('{csv_file_path}', sep=';')")
+    n_records = con.execute("SELECT COUNT(*) FROM company_data_raw").fetchone()[0]
     con.close()
-    return len(df_raw)
+    return n_records
 
 
 def save_reference_duplicates_to_database(reference_file):
     """
-    Save reference duplicates to database.
-    Expected CSV format: bewertung.csv with SATZNR_1, SATZNR_2, ...
+    Liest die Referenzpaare aus bewertung.csv und speichert sie als reference_duplicates (nur SATZNR_1/SATZNR_2).
+    Args:
+        reference_file (str): Pfad zu bewertung.csv
     Returns:
-        int: Number of reference pairs saved
+        int: Anzahl der Referenzpaare
     """
     con = get_connection()
-    df_ref = pd.read_csv(reference_file, sep=";")
-    if "SATZNR_1" in df_ref.columns and "SATZNR_2" in df_ref.columns:
-        df_ref = df_ref[["SATZNR_1", "SATZNR_2"]].copy()
-        df_ref.columns = ["id1", "id2"]
-    elif len(df_ref.columns) >= 2:
-        df_ref = df_ref.iloc[:, :2].copy()
-        df_ref.columns = ["id1", "id2"]
-    else:
-        raise ValueError("Reference file must have at least 2 columns (id1, id2) or bewertung.csv format")
     con.execute("DROP TABLE IF EXISTS reference_duplicates")
-    con.register("temp_ref", df_ref)
-    con.execute("CREATE TABLE reference_duplicates AS SELECT * FROM temp_ref")
+    con.execute(f"CREATE TABLE reference_duplicates AS SELECT SATZNR_1 AS id1, SATZNR_2 AS id2 FROM read_csv_auto('{reference_file}', sep=';')")
+    n_pairs = con.execute("SELECT COUNT(*) FROM reference_duplicates").fetchone()[0]
     con.close()
-    return len(df_ref)
+    return n_pairs
 
 
 def load_input_and_reference_data(input_path, reference_path, n_dups=5000, n_nodups=5000, enhanced_mode=False):
     """
-    Lädt balanciertes Testset und Referenzpaare und speichert sie in die Datenbank.
+    Lädt die Inputdaten und Referenzpaare, erstellt ein balanciertes Testset und speichert alles in die Datenbank.
     Args:
         input_path (str): Pfad zu partnerdaten.csv
         reference_path (str): Pfad zu bewertung.csv
-        n_dups (int, optional): Anzahl Duplikate im Testset (Default 5000)
-        n_nodups (int, optional): Anzahl Nicht-Duplikate im Testset (Default 5000)
+        n_dups (int): Anzahl Duplikat-Paare
+        n_nodups (int): Anzahl Nicht-Duplikate
+        enhanced_mode (bool): Erweiterte Normalisierung
+    Returns:
+        Tuple (n_balanced, n_refs): Anzahl balancierter Datensätze, Anzahl Referenzpaare
     """
-    n_records = save_csv_input_data(input_path, reference_path, n_dups=n_dups, n_nodups=n_nodups, enhanced_mode=enhanced_mode)
+    # Zuerst Referenzpaare speichern
     n_refs = save_reference_duplicates_to_database(reference_path)
-    return n_records, n_refs
+    # Inputdaten einlesen
+    n_records = save_csv_input_data(input_path)
+    # Balanciertes Testset erzeugen und speichern
+    n_balanced = create_balanced_company_data(input_path, reference_path, n_dups=n_dups, n_nodups=n_nodups, enhanced_mode=enhanced_mode)
+    return n_balanced, n_refs
 
 
 def get_prediction_data():
@@ -127,8 +137,8 @@ def get_prediction_data():
     con = get_connection()
     try:
         df = con.execute("SELECT * FROM company_data").df()
-        con.close()
         return df
     except Exception:
-        con.close()
         return None
+    finally:
+        con.close()

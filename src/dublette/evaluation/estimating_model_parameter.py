@@ -11,9 +11,7 @@ from splink.blocking_analysis import (
 from splink.exploratory import profile_columns
 
 
-
-
-def create_prediction_reference_table(db_path, pred_table="predicted_duplicates", ref_table="reference_duplicates", threshold=0.5):
+def create_prediction_reference_table(db_path, pred_table="predicted_duplicates", ref_table="reference_duplicates"):
     """
     Legt die Tabelle prediction_reference mit initialem Threshold an und befüllt sie.
     """

@@ -10,10 +10,10 @@ def get_splink_settings():
     Gibt die Splink-Settings für einen minimalen Start zurück (nur NAME).
     """
     comparisons = [
-        # cl.ExactMatch("NAME"),
-        # cl.ExactMatch("VORNAME"),
-        cl.NameComparison("NAME").configure(term_frequency_adjustments=True),
-        cl.NameComparison("VORNAME").configure(term_frequency_adjustments=True),
+        cl.ExactMatch("NAME"),
+        cl.ExactMatch("VORNAME"),
+        # cl.NameComparison("NAME").configure(term_frequency_adjustments=True),
+        # cl.NameComparison("VORNAME").configure(term_frequency_adjustments=True),
         cl.ExactMatch("GEBURTSDATUM"),
         {
             "output_column_name": "ADRESSZEILE",

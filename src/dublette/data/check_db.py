@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import duckdb
 import click
 
@@ -47,6 +49,16 @@ def show_last_evaluations(db_path=DEFAULT_DB_PATH, limit=5):
     for _, row in df.iterrows():
         click.echo(f"{row['run_timestamp']} | {row['threshold']:.4f} | {row['true_positives']} | {row['false_positives']} | {row['false_negatives']} | {row['true_negatives']} | {row['precision']:.4f} | {row['recall']:.4f} | {row['f1_score']:.4f}")
 
+def count_true_negatives(db_path=DEFAULT_DB_PATH):
+    con = duckdb.connect(db_path)
+    count = con.execute("""
+        SELECT COUNT(*) FROM company_data_raw
+        WHERE SATZNR NOT IN (SELECT id1 FROM reference_duplicates)
+          AND SATZNR NOT IN (SELECT id2 FROM reference_duplicates)
+    """).fetchone()[0]
+    con.close()
+    return count
+
 @click.group()
 @click.option('--db-path', default=DEFAULT_DB_PATH, show_default=True, help='Pfad zur DuckDB-Datenbank')
 @click.pass_context
@@ -76,6 +88,13 @@ def columns(ctx, table_name):
 @click.pass_context
 def drop(ctx, table_name):
     drop_table(table_name, ctx.obj['db_path'])
+
+@cli.command()
+@click.pass_context
+def true_negatives(ctx):
+    """Gibt die Anzahl der echten Negativsätze in company_data_raw aus."""
+    count = count_true_negatives(ctx.obj['db_path'])
+    click.echo(f"Echte Negativsätze in company_data_raw: {count}")
 
 @cli.command()
 @click.option('--limit', default=5, show_default=True, help='Anzahl der letzten Evaluationsergebnisse')

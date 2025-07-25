@@ -23,12 +23,12 @@ def train_splink_model(linker, blocking_rules, max_pairs=5000, smoothing_value=1
 
 import duckdb
 
-def run_splink_predict(linker, connection, output_table="predicted_duplicates"):
+def run_splink_predict(linker, connection, output_table="predicted_duplicates", threshold_match_probability=0.90):
     """
     Führt die Dubletten-Vorhersage mit einem bestehenden Splink-Linker durch und speichert die Ergebnisse als Tabelle in DuckDB.
     Gibt das Ergebnis-DataFrame zurück.
     """
-    predictions = linker.inference.predict(threshold_match_probability=0.90)  # Beispiel-Threshold, kann angepasst werden
+    predictions = linker.inference.predict(threshold_match_probability=threshold_match_probability)
     df_pred = predictions.as_pandas_dataframe()
     # DataFrame als temporäre View registrieren und als Tabelle speichern
     connection.register('df_pred', df_pred)
