@@ -160,7 +160,7 @@ def main(
             blocking_rules = settings["blocking_rules_to_generate_predictions"]
 
             # Splink-Modell trainieren
-            train_splink_model(linker, blocking_rules, max_pairs=5000)
+            train_splink_model(linker, blocking_rules, max_pairs=100000)
 
             # 1. Blocking Rule Stats (jetzt mit DataFrame, nicht Linker)
             df_analysis = get_prediction_data()
@@ -194,14 +194,13 @@ def main(
     if predict:
         try:
             if linker is None:
-                connection = get_connection()
-                linker = create_duckdb_linker(table_name="company_data", connection=connection)
-            
-            thresholds = [round(x, 7) for x in [0.999995, 0.999996, 0.999997, 0.999998, 0.999999, 0.9999995]]
+                click.echo("🔗 Kein Linker gefunden. Erstelle zuerst per Train einen Linker...")
+                
+            thresholds = [round(x, 7) for x in [0.5, 0.6, 0.7, 0.99995, 0.99996, 0.99997, 0.99998, 0.99999, 0.999995, 0.9999985, 0.9999999999999, 1]]
             
             click.echo("🔮 Starte Dubletten-Vorhersage mit Splink...")
             connection = get_connection()
-            df_pred = run_splink_predict(linker, connection, threshold_match_probability=thresholds[0])
+            df_pred = run_splink_predict(linker, connection)
             click.echo(f"✅ Vorhersage abgeschlossen. {len(df_pred)} Dubletten gespeichert in Tabelle 'predicted_duplicates'.")
 
             # Timestamp für diesen Durchlauf erzeugen

@@ -23,7 +23,7 @@ def train_splink_model(linker, blocking_rules, max_pairs=5000, smoothing_value=1
 
 import duckdb
 
-def run_splink_predict(linker, connection, output_table="predicted_duplicates", threshold_match_probability=0.90):
+def run_splink_predict(linker, connection, output_table="predicted_duplicates", threshold_match_probability=0.3):
     """
     Führt die Dubletten-Vorhersage mit einem bestehenden Splink-Linker durch und speichert die Ergebnisse als Tabelle in DuckDB.
     Gibt das Ergebnis-DataFrame zurück.

@@ -25,7 +25,7 @@ def create_prediction_reference_table(db_path, pred_table="predicted_duplicates"
             CASE WHEN r.id1 IS NOT NULL AND r.id2 IS NOT NULL THEN 1 ELSE 0 END AS ref_label
         FROM {pred_table} p
         LEFT JOIN {ref_table} r
-        ON p.SATZNR_l = r.id1 AND p.SATZNR_r = r.id2
+        ON (p.SATZNR_l = r.id1 AND p.SATZNR_r = r.id2)
     """)
     con.close()
 

@@ -19,6 +19,128 @@ import re
 import unicodedata
 
 
+def normalize_partner_data(
+    df: pd.DataFrame,
+    normalize_for_splink: bool = True,
+    enhanced_mode: bool = False,
+    phonetic_names: bool = False,
+    fuzzy_cities: bool = False,
+    nlp_addresses: bool = False,
+) -> pd.DataFrame:
+    """
+    Vollständige Normalisierung der Partnerdaten mit optionalen Erweiterungen.
+
+    Führt alle Normalisierungsschritte in der korrekten Reihenfolge durch:
+    1. Grundlegende Normalisierung (Groß, Trim, Unicode)
+    2. Spezielle Normalisierung nach Spaltentyp (mit optionalen Erweiterungen)
+    3. Datumsnormalisierung
+    4. Finale Bereinigung (Leerzeichen und Sonderzeichen)
+
+    Args:
+        df (pd.DataFrame): DataFrame mit Partnerdaten
+        normalize_for_splink (bool): Ob finale Bereinigung für Splink durchgeführt werden soll
+        enhanced_mode (bool): Aktiviert alle erweiterten Algorithmen
+        phonetic_names (bool): Phonetische Algorithmen für Namen
+        fuzzy_cities (bool): Fuzzy-Matching für Ortsnamen
+        nlp_addresses (bool): NLP-basierte Adresserweiterungen
+
+    Returns:
+        pd.DataFrame: Normalisiertes DataFrame
+    """
+    if df is None or df.empty:
+        return df
+
+    df_normalized = df.copy()
+
+    # Enhanced mode aktiviert alle Erweiterungen
+    if enhanced_mode:
+        phonetic_names = True
+        fuzzy_cities = True
+        nlp_addresses = True
+
+    print("Starte umfassende Datennormalisierung...")
+    print(f"Anzahl Datensätze: {len(df_normalized)}")
+    print(f"Spalten: {list(df_normalized.columns)}")
+
+    if enhanced_mode:
+        print("🚀 Enhanced Mode aktiviert - verwende erweiterte Algorithmen")
+
+    # Check optional dependencies
+    optional_deps = {}
+    if phonetic_names or fuzzy_cities:
+        try:
+            import jellyfish
+
+            optional_deps["jellyfish"] = True
+            print("✓ jellyfish verfügbar für phonetische/fuzzy Algorithmen")
+        except ImportError:
+            optional_deps["jellyfish"] = False
+            print("⚠ jellyfish nicht installiert - verwende Standard-Algorithmen")
+
+    # Schritt 1-3: Spezielle Normalisierung nach Spaltentyp
+    for column in df_normalized.columns:
+        print(f"  Normalisiere Spalte: {column}")
+
+        if column in ["NAME"]:
+            if phonetic_names and optional_deps.get("jellyfish", False):
+                df_normalized[column] = df_normalized[column].apply(lambda x: normalize_name_enhanced(x, use_phonetic=True))
+            else:
+                df_normalized[column] = df_normalized[column].apply(normalize_name)
+
+        elif column in ["VORNAME"]:
+            if phonetic_names and optional_deps.get("jellyfish", False):
+                df_normalized[column] = df_normalized[column].apply(lambda x: normalize_name_enhanced(x, use_phonetic=True))
+            else:
+                df_normalized[column] = df_normalized[column].apply(normalize_name)
+
+        elif column in ["ORT"]:
+            if fuzzy_cities and optional_deps.get("jellyfish", False):
+                df_normalized[column] = df_normalized[column].apply(lambda x: normalize_city_enhanced(x, fuzzy_matching=True))
+            else:
+                df_normalized[column] = df_normalized[column].apply(normalize_city)
+
+        elif column in ["ADRESSZEILE"]:
+            if nlp_addresses:
+                df_normalized[column] = df_normalized[column].apply(lambda x: normalize_address_enhanced(x, use_nlp=True))
+            else:
+                df_normalized[column] = df_normalized[column].apply(normalize_address)
+
+        elif column in ["GEBURTSDATUM"]:
+            df_normalized[column] = df_normalized[column].apply(normalize_date)
+        else:
+            # Grundlegende Normalisierung für alle anderen Spalten
+            df_normalized[column] = df_normalized[column].apply(normalize_text_basic)
+
+    # Schritt 4: Finale Bereinigung für Splink (optional)
+    if normalize_for_splink:
+        print("  Finale Bereinigung: Entferne Leerzeichen und Sonderzeichen...")
+
+        for column in df_normalized.columns:
+            if column == "GEBURTSDATUM":
+                # Bei Datum nur Leerzeichen entfernen, Bindestriche behalten
+                df_normalized[column] = df_normalized[column].apply(
+                    lambda x: remove_special_chars_and_spaces(x, preserve_date_chars=True)
+                )
+            else:
+                # Bei allen anderen Spalten: Leerzeichen und Sonderzeichen entfernen
+                df_normalized[column] = df_normalized[column].apply(
+                    lambda x: remove_special_chars_and_spaces(x, preserve_date_chars=False)
+                )
+
+    print("Datennormalisierung erfolgreich abgeschlossen!")
+
+    # Zeige Beispiele der Normalisierung
+    if len(df_normalized) > 0:
+        print("\nBeispiele der Normalisierung:")
+        for column in ["NAME", "VORNAME", "ORT", "ADRESSZEILE"][:3]:
+            if column in df_normalized.columns:
+                original = df.iloc[0][column] if not pd.isna(df.iloc[0][column]) else "N/A"
+                normalized = df_normalized.iloc[0][column] if not pd.isna(df_normalized.iloc[0][column]) else "N/A"
+                print(f"  {column}: '{original}' -> '{normalized}'")
+
+    return df_normalized
+
+
 def normalize_text_basic(text: str) -> str:
     """
     Grundlegende Textnormalisierung ohne externe Modelle.
@@ -82,6 +204,36 @@ def normalize_text_basic(text: str) -> str:
     return text
 
 
+def remove_special_chars_and_spaces(text: str, preserve_date_chars: bool = False) -> str:
+    """
+    Entfernt Leerzeichen und Sonderzeichen (außer bei Datumsfeldern).
+
+    Dies ist der finale Normalisierungsschritt.
+
+    Args:
+        text (str): Text
+        preserve_date_chars (bool): Ob Datums-Sonderzeichen beibehalten werden sollen
+
+    Returns:
+        str: Bereinigter Text
+    """
+    if pd.isna(text) or text is None:
+        return ""
+
+    text = str(text)
+
+    if preserve_date_chars:
+        # Nur Leerzeichen entfernen, Datums-Sonderzeichen (Bindestriche) behalten
+        text = re.sub(r"\s+", "", text)
+    else:
+        # Alle Leerzeichen entfernen
+        text = re.sub(r"\s+", "", text)
+        # Sonderzeichen entfernen (nur Buchstaben und Zahlen behalten)
+        text = re.sub(r"[^A-Z0-9]", "", text)
+
+    return text
+
+    
 def normalize_address(address: str) -> str:
     """
     Spezielle Normalisierung für Adressen.
@@ -264,187 +416,6 @@ def normalize_date(date_str: str) -> str:
     return date_str
 
 
-def remove_special_chars_and_spaces(text: str, preserve_date_chars: bool = False) -> str:
-    """
-    Entfernt Leerzeichen und Sonderzeichen (außer bei Datumsfeldern).
-
-    Dies ist der finale Normalisierungsschritt.
-
-    Args:
-        text (str): Text
-        preserve_date_chars (bool): Ob Datums-Sonderzeichen beibehalten werden sollen
-
-    Returns:
-        str: Bereinigter Text
-    """
-    if pd.isna(text) or text is None:
-        return ""
-
-    text = str(text)
-
-    if preserve_date_chars:
-        # Nur Leerzeichen entfernen, Datums-Sonderzeichen (Bindestriche) behalten
-        text = re.sub(r"\s+", "", text)
-    else:
-        # Alle Leerzeichen entfernen
-        text = re.sub(r"\s+", "", text)
-        # Sonderzeichen entfernen (nur Buchstaben und Zahlen behalten)
-        text = re.sub(r"[^A-Z0-9]", "", text)
-
-    return text
-
-
-def normalize_partner_data(
-    df: pd.DataFrame,
-    normalize_for_splink: bool = True,
-    enhanced_mode: bool = False,
-    phonetic_names: bool = False,
-    fuzzy_cities: bool = False,
-    nlp_addresses: bool = False,
-) -> pd.DataFrame:
-    """
-    Vollständige Normalisierung der Partnerdaten mit optionalen Erweiterungen.
-
-    Führt alle Normalisierungsschritte in der korrekten Reihenfolge durch:
-    1. Grundlegende Normalisierung (Groß, Trim, Unicode)
-    2. Spezielle Normalisierung nach Spaltentyp (mit optionalen Erweiterungen)
-    3. Datumsnormalisierung
-    4. Finale Bereinigung (Leerzeichen und Sonderzeichen)
-
-    Args:
-        df (pd.DataFrame): DataFrame mit Partnerdaten
-        normalize_for_splink (bool): Ob finale Bereinigung für Splink durchgeführt werden soll
-        enhanced_mode (bool): Aktiviert alle erweiterten Algorithmen
-        phonetic_names (bool): Phonetische Algorithmen für Namen
-        fuzzy_cities (bool): Fuzzy-Matching für Ortsnamen
-        nlp_addresses (bool): NLP-basierte Adresserweiterungen
-
-    Returns:
-        pd.DataFrame: Normalisiertes DataFrame
-    """
-    if df is None or df.empty:
-        return df
-
-    df_normalized = df.copy()
-
-    # Enhanced mode aktiviert alle Erweiterungen
-    if enhanced_mode:
-        phonetic_names = True
-        fuzzy_cities = True
-        nlp_addresses = True
-
-    print("Starte umfassende Datennormalisierung...")
-    print(f"Anzahl Datensätze: {len(df_normalized)}")
-    print(f"Spalten: {list(df_normalized.columns)}")
-
-    if enhanced_mode:
-        print("🚀 Enhanced Mode aktiviert - verwende erweiterte Algorithmen")
-
-    # Check optional dependencies
-    optional_deps = {}
-    if phonetic_names or fuzzy_cities:
-        try:
-            import jellyfish
-
-            optional_deps["jellyfish"] = True
-            print("✓ jellyfish verfügbar für phonetische/fuzzy Algorithmen")
-        except ImportError:
-            optional_deps["jellyfish"] = False
-            print("⚠ jellyfish nicht installiert - verwende Standard-Algorithmen")
-
-    # Schritt 1-3: Spezielle Normalisierung nach Spaltentyp
-    for column in df_normalized.columns:
-        print(f"  Normalisiere Spalte: {column}")
-
-        if column in ["NAME"]:
-            if phonetic_names and optional_deps.get("jellyfish", False):
-                df_normalized[column] = df_normalized[column].apply(lambda x: normalize_name_enhanced(x, use_phonetic=True))
-            else:
-                df_normalized[column] = df_normalized[column].apply(normalize_name)
-
-        elif column in ["VORNAME"]:
-            if phonetic_names and optional_deps.get("jellyfish", False):
-                df_normalized[column] = df_normalized[column].apply(lambda x: normalize_name_enhanced(x, use_phonetic=True))
-            else:
-                df_normalized[column] = df_normalized[column].apply(normalize_name)
-
-        elif column in ["ORT"]:
-            if fuzzy_cities and optional_deps.get("jellyfish", False):
-                df_normalized[column] = df_normalized[column].apply(lambda x: normalize_city_enhanced(x, fuzzy_matching=True))
-            else:
-                df_normalized[column] = df_normalized[column].apply(normalize_city)
-
-        elif column in ["ADRESSZEILE"]:
-            if nlp_addresses:
-                df_normalized[column] = df_normalized[column].apply(lambda x: normalize_address_enhanced(x, use_nlp=True))
-            else:
-                df_normalized[column] = df_normalized[column].apply(normalize_address)
-
-        elif column in ["GEBURTSDATUM"]:
-            df_normalized[column] = df_normalized[column].apply(normalize_date)
-        else:
-            # Grundlegende Normalisierung für alle anderen Spalten
-            df_normalized[column] = df_normalized[column].apply(normalize_text_basic)
-
-    # Schritt 4: Finale Bereinigung für Splink (optional)
-    if normalize_for_splink:
-        print("  Finale Bereinigung: Entferne Leerzeichen und Sonderzeichen...")
-
-        for column in df_normalized.columns:
-            if column == "GEBURTSDATUM":
-                # Bei Datum nur Leerzeichen entfernen, Bindestriche behalten
-                df_normalized[column] = df_normalized[column].apply(
-                    lambda x: remove_special_chars_and_spaces(x, preserve_date_chars=True)
-                )
-            else:
-                # Bei allen anderen Spalten: Leerzeichen und Sonderzeichen entfernen
-                df_normalized[column] = df_normalized[column].apply(
-                    lambda x: remove_special_chars_and_spaces(x, preserve_date_chars=False)
-                )
-
-    print("Datennormalisierung erfolgreich abgeschlossen!")
-
-    # Zeige Beispiele der Normalisierung
-    if len(df_normalized) > 0:
-        print("\nBeispiele der Normalisierung:")
-        for column in ["NAME", "VORNAME", "ORT", "ADRESSZEILE"][:3]:
-            if column in df_normalized.columns:
-                original = df.iloc[0][column] if not pd.isna(df.iloc[0][column]) else "N/A"
-                normalized = df_normalized.iloc[0][column] if not pd.isna(df_normalized.iloc[0][column]) else "N/A"
-                print(f"  {column}: '{original}' -> '{normalized}'")
-
-    return df_normalized
-
-
-def get_normalization_statistics(df_original: pd.DataFrame, df_normalized: pd.DataFrame) -> dict:
-    """
-    Erstellt Statistiken über die Normalisierung.
-
-    Args:
-        df_original (pd.DataFrame): Original DataFrame
-        df_normalized (pd.DataFrame): Normalisiertes DataFrame
-
-    Returns:
-        dict: Statistiken über die Normalisierung
-    """
-    stats = {"total_records": len(df_original), "columns_processed": len(df_original.columns), "changes_by_column": {}}
-
-    for column in df_original.columns:
-        if column in df_normalized.columns:
-            original_values = df_original[column].astype(str)
-            normalized_values = df_normalized[column].astype(str)
-
-            changes = (original_values != normalized_values).sum()
-            change_percentage = (changes / len(df_original)) * 100
-
-            stats["changes_by_column"][column] = {"changes": int(changes), "change_percentage": round(change_percentage, 2)}
-
-    return stats
-
-
-# === ENHANCED HYBRID NORMALIZATION FUNCTIONS ===
-
-
 def normalize_name_enhanced(name: str, use_phonetic: bool = False) -> str:
     """
     Erweiterte Namen-Normalisierung mit optionaler phonetischer Komponente.
@@ -572,3 +543,29 @@ def normalize_address_enhanced(address: str, use_nlp: bool = False) -> str:
             print(f"  Hinweis: Erweiterte Adressnormalisierung fehlgeschlagen ({e})")
 
     return address
+
+
+def get_normalization_statistics(df_original: pd.DataFrame, df_normalized: pd.DataFrame) -> dict:
+    """
+    Erstellt Statistiken über die Normalisierung.
+
+    Args:
+        df_original (pd.DataFrame): Original DataFrame
+        df_normalized (pd.DataFrame): Normalisiertes DataFrame
+
+    Returns:
+        dict: Statistiken über die Normalisierung
+    """
+    stats = {"total_records": len(df_original), "columns_processed": len(df_original.columns), "changes_by_column": {}}
+
+    for column in df_original.columns:
+        if column in df_normalized.columns:
+            original_values = df_original[column].astype(str)
+            normalized_values = df_normalized[column].astype(str)
+
+            changes = (original_values != normalized_values).sum()
+            change_percentage = (changes / len(df_original)) * 100
+
+            stats["changes_by_column"][column] = {"changes": int(changes), "change_percentage": round(change_percentage, 2)}
+
+    return stats

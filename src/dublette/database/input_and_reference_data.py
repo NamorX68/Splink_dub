@@ -8,8 +8,6 @@ from dublette.data.normalization import normalize_partner_data
 
 
 def create_balanced_company_data(
-    testdata_path: str,
-    bewertung_path: str,
     n_dups: int = 5000,
     n_nodups: int = 10000,
     enhanced_mode=False,
@@ -35,7 +33,7 @@ def create_balanced_company_data(
     drop_tables(con, temp_tables)
 
     # Ziehe n_dups Paare aus reference_duplicates
-    con.execute(f"CREATE TABLE temp_ref_sample AS SELECT * FROM reference_duplicates USING SAMPLE {n_dups} ROWS")
+    con.execute(f"CREATE TABLE temp_ref_sample AS SELECT * FROM reference_duplicates ORDER BY id1 LIMIT {n_dups}")
     # Erstelle Liste aller Satznummern (id1 und id2)
     con.execute("CREATE TABLE temp_pos_ids AS SELECT id1 AS SATZNR FROM temp_ref_sample UNION ALL SELECT id2 AS SATZNR FROM temp_ref_sample")
     # Hole alle Zeilen aus company_data_raw, deren SATZNR in temp_pos_ids ist (Positivsätze)
@@ -62,9 +60,9 @@ def create_balanced_company_data(
     # Hole die Daten als DataFrame
     df_balanced = con.execute("SELECT * FROM temp_balanced ORDER BY RANDOM()").df()
     # Normalisiere die Daten
-    df_balanced = df_balanced.applymap(lambda x: None if isinstance(x, str) and x.strip() == "" else x)
+    df_balanced = df_balanced.map(lambda x: None if isinstance(x, str) and x.strip() == "" else x)
     df_normalized = normalize_partner_data(df_balanced, enhanced_mode=enhanced_mode)
-    df_normalized = df_normalized.applymap(lambda x: None if isinstance(x, str) and x.strip() == "" else x)
+    df_normalized = df_normalized.map(lambda x: None if isinstance(x, str) and x.strip() == "" else x)
     # Speichere als company_data
     con.execute("DROP TABLE IF EXISTS company_data")
     con.register("temp_norm", df_normalized)
@@ -73,6 +71,33 @@ def create_balanced_company_data(
     drop_tables(con, temp_tables)
     con.close()
     return len(df_balanced)
+
+
+def create_company_data(n_rows: int, enhanced_mode=False):
+    """
+    Liest n_rows Datensätze aus company_data_raw, normalisiert sie und schreibt sie als company_data.
+    Args:
+        n_rows (int): Anzahl der zu lesenden Datensätze
+        enhanced_mode (bool): Erweiterte Normalisierung
+    Returns:
+        int: Anzahl der geschriebenen Datensätze
+    """
+    con = get_connection()
+    # Hole n_rows Zeilen aus company_data_raw
+    if n_rows <= 0:
+        df = con.execute(f"SELECT * FROM company_data_raw ").df()
+    else:
+        df = con.execute(f"SELECT * FROM company_data_raw ORDER BY SATZNR LIMIT {n_rows}").df()
+    # Normalisiere die Daten
+    df = df.map(lambda x: None if isinstance(x, str) and x.strip() == "" else x)
+    df_normalized = normalize_partner_data(df, enhanced_mode=enhanced_mode)
+    df_normalized = df_normalized.map(lambda x: None if isinstance(x, str) and x.strip() == "" else x)
+    # Schreibe als company_data
+    con.execute("DROP TABLE IF EXISTS company_data")
+    con.register("temp_norm", df_normalized)
+    con.execute("CREATE TABLE company_data AS SELECT DISTINCT * FROM temp_norm")
+    con.close()
+    return len(df_normalized)
 
 
 def save_csv_input_data(csv_file_path, bewertung_path=None, n_dups=5000, n_nodups=5000, enhanced_mode=False):
@@ -124,7 +149,8 @@ def load_input_and_reference_data(input_path, reference_path, n_dups=5000, n_nod
     # Inputdaten einlesen
     n_records = save_csv_input_data(input_path)
     # Balanciertes Testset erzeugen und speichern
-    n_balanced = create_balanced_company_data(input_path, reference_path, n_dups=n_dups, n_nodups=n_nodups, enhanced_mode=enhanced_mode)
+    # n_balanced = create_balanced_company_data(n_dups=n_dups, n_nodups=n_nodups, enhanced_mode=enhanced_mode)
+    n_balanced = create_company_data(n_rows=n_dups, enhanced_mode=enhanced_mode)
     return n_balanced, n_refs
 
 
